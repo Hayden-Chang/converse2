@@ -30,6 +30,51 @@ final class AppState: ObservableObject {
 
     func reload() {
         folders = (try? db.allFolders()) ?? []
+        syncStatuses()
+        let orphaned = tmux.orphanedConverseSessions(recordedIDs: allRecordedShortIDs())
+        if !orphaned.isEmpty {
+            print("[Converse] \(orphaned.count) orphaned converse_ tmux session(s) detected (not auto-cleaned).")
+        }
+    }
+
+    func syncStatuses() {
+        for folder in folders {
+            for session in sessions(in: folder) {
+                guard let id = session.id else { continue }
+                let live = tmux.hasSession(id: tmuxShortID(for: session))
+                try? db.updateSessionStatus(id, live ? .running : .missing)
+            }
+        }
+    }
+
+    private func allRecordedShortIDs() -> [String] {
+        folders.flatMap { sessions(in: $0) }.map { tmuxShortID(for: $0) }
+    }
+
+    func hasRunningSessions(in folder: Folder) -> Bool {
+        sessions(in: folder).contains { status(for: $0) == .running }
+    }
+
+    func recreateSession(_ session: SessionRecord) {
+        guard let id = session.id else { return }
+        let sid = tmuxShortID(for: session)
+        guard !tmux.hasSession(id: sid) else { reload(); return }
+        do {
+            try tmux.ensureSession(id: sid, cwd: session.currentCwd, shell: session.shellPath)
+            try db.updateSessionStatus(id, .running)
+        } catch {
+            try? db.updateSessionStatus(id, .missing)
+        }
+        reload()
+    }
+
+    func forceCloseSession(_ session: SessionRecord) {
+        guard let id = session.id else { return }
+        let sid = tmuxShortID(for: session)
+        tmux.killSession(id: sid)
+        try? db.deleteSession(id)
+        if selectedSessionID == sid { selectedSessionID = nil }
+        reload()
     }
 
     func addFolder(name: String, diskPath: String) {
