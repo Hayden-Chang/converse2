@@ -89,6 +89,12 @@ final class TmuxManager {
         (binPath, ["attach", "-t", Self.sessionName(for: id)])
     }
 
+    func orphanedConverseSessions(recordedIDs: [String]) -> [String] {
+        let live = Set(listConverseSessions())
+        let recorded = Set(recordedIDs)
+        return Array(live.subtracting(recorded)).sorted()
+    }
+
     @discardableResult
     private func runTmux(_ args: [String]) -> (status: Int32, stdout: String, stderr: String) {
         let p = Process()

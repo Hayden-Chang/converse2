@@ -6,6 +6,8 @@ struct SidebarView: View {
     @EnvironmentObject var state: AppState
     @State private var newSessionFolder: Folder?
     @State private var newSessionName: String = ""
+    @State private var missingPrompt: SessionRecord?
+    @State private var deleteFolderPrompt: Folder?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -29,6 +31,44 @@ struct SidebarView: View {
         .sheet(item: $newSessionFolder) { folder in
             newSessionSheet(folder)
         }
+        .onAppear { checkMissing() }
+        .onChange(of: state.selectedSessionID) { _ in checkMissing() }
+        .alert(
+            "会话已丢失（tmux 不存在）",
+            isPresented: Binding(get: { missingPrompt != nil },
+                                 set: { if !$0 { missingPrompt = nil } })
+        ) {
+            Button("重新创建") {
+                if let s = missingPrompt { state.recreateSession(s) }
+                missingPrompt = nil
+            }
+            Button("移除记录", role: .destructive) {
+                if let s = missingPrompt { state.forceCloseSession(s) }
+                missingPrompt = nil
+            }
+            Button("取消", role: .cancel) { missingPrompt = nil }
+        } message: {
+            Text("该会话的 tmux 已不存在（可能因机器重启或 tmux server 退出）。是否重新创建？")
+        }
+        .confirmationDialog(
+            "该工作区有运行中的会话，仍要移除？",
+            isPresented: Binding(get: { deleteFolderPrompt != nil },
+                                 set: { if !$0 { deleteFolderPrompt = nil } }),
+            presenting: deleteFolderPrompt
+        ) { folder in
+            Button("移除（关闭会话）", role: .destructive) {
+                state.deleteFolder(folder)
+                deleteFolderPrompt = nil
+            }
+            Button("取消", role: .cancel) { deleteFolderPrompt = nil }
+        } message: { _ in
+            Text("相关会话将被关闭，磁盘目录不受影响。")
+        }
+    }
+
+    private func checkMissing() {
+        guard let s = state.selectedSession() else { missingPrompt = nil; return }
+        if state.status(for: s) == .missing { missingPrompt = s } else { missingPrompt = nil }
     }
 
     private var header: some View {
@@ -58,7 +98,13 @@ struct SidebarView: View {
                 Button { newSessionFolder = folder } label: {
                     Image(systemName: "square.and.pencil").font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
                 }.buttonStyle(.plain).help("新建会话")
-                Button { state.deleteFolder(folder) } label: {
+                Button {
+                    if state.hasRunningSessions(in: folder) {
+                        deleteFolderPrompt = folder
+                    } else {
+                        state.deleteFolder(folder)
+                    }
+                } label: {
                     Image(systemName: "trash").font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
                 }.buttonStyle(.plain).help("删除文件夹")
             }
