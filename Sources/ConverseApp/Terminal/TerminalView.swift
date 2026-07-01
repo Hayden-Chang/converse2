@@ -4,6 +4,7 @@ import AppKit
 
 struct SwiftTerminalView: NSViewRepresentable {
     let directory: String
+    var tmuxSessionID: String? = nil
     var onProcessTerminated: ((Int32?) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
@@ -15,7 +16,12 @@ struct SwiftTerminalView: NSViewRepresentable {
         view.processDelegate = context.coordinator
         applyAppearance(to: view)
         context.coordinator.terminalView = view
-        let session = TerminalSession(directory: directory)
+        let session: TerminalSession
+        if let id = tmuxSessionID {
+            session = TerminalSession(tmuxSessionID: id, directory: directory)
+        } else {
+            session = TerminalSession(directory: directory)
+        }
         session.terminalView = view
         view.startProcess(
             executable: session.executable,

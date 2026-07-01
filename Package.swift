@@ -29,7 +29,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ConverseCoreTests",
-            dependencies: ["ConverseCore"],
+            dependencies: ["ConverseCore", "ConverseApp"],
             path: "Tests/ConverseCoreTests"
         ),
     ]
