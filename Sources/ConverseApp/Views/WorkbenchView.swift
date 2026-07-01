@@ -48,6 +48,8 @@ struct WorkbenchView: View {
 
 struct TopBar: View {
     @EnvironmentObject var state: AppState
+    @State private var runningCount: Int = 0
+    @State private var missingCount: Int = 0
 
     var body: some View {
         HStack(spacing: Theme.Spacing.s7) {
@@ -70,6 +72,10 @@ struct TopBar: View {
 
             Spacer()
 
+            Text("\(runningCount) 运行 · \(missingCount) 丢失")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.textTertiary)
+
             Picker("", selection: $state.aiMode) {
                 ForEach(AiMode.allCases, id: \.self) { Text($0.label).tag($0) }
             }
@@ -81,6 +87,13 @@ struct TopBar: View {
         }
         .padding(.horizontal, Theme.Spacing.s9).frame(height: 42)
         .background(Theme.bgApp)
+        .onAppear { refreshStatus() }
+    }
+
+    private func refreshStatus() {
+        let ids = TmuxManager().listConverseSessions()
+        runningCount = ids.count
+        missingCount = 0
     }
 }
 
@@ -121,10 +134,16 @@ struct SessionSidebar: View {
 }
 
 struct MainColumn: View {
+    @State private var tmuxReady = false
+
     var body: some View {
         VStack(spacing: 0) {
-            SwiftTerminalView(directory: FileManager.default.homeDirectoryForCurrentUser.path)
-                .background(Theme.bgSubtle)
+            if tmuxReady {
+                SwiftTerminalView(directory: FileManager.default.homeDirectoryForCurrentUser.path,
+                                  tmuxSessionID: "main")
+            } else {
+                Color.clear
+            }
             Divider().background(Theme.border)
             HStack(spacing: Theme.Spacing.s6) {
                 Text("说点什么或打个命令…").foregroundStyle(Theme.textTertiary)
@@ -134,6 +153,19 @@ struct MainColumn: View {
             .background(Theme.bgSurface)
         }
         .background(Theme.bgSurface)
+        .onAppear { ensureTmux() }
+    }
+
+    private func ensureTmux() {
+        let mgr = TmuxManager()
+        do {
+            try mgr.ensureSession(
+                id: "main",
+                cwd: FileManager.default.homeDirectoryForCurrentUser.path,
+                shell: nil
+            )
+        } catch {}
+        tmuxReady = true
     }
 }
 
