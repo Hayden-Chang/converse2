@@ -123,10 +123,8 @@ struct SessionSidebar: View {
 struct MainColumn: View {
     var body: some View {
         VStack(spacing: 0) {
-            ZStack {
-                Theme.bgSubtle
-                Text("终端区").foregroundStyle(Theme.textTertiary)
-            }
+            SwiftTerminalView(directory: FileManager.default.homeDirectoryForCurrentUser.path)
+                .background(Theme.bgSubtle)
             Divider().background(Theme.border)
             HStack(spacing: Theme.Spacing.s6) {
                 Text("说点什么或打个命令…").foregroundStyle(Theme.textTertiary)
