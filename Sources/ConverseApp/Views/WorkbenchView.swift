@@ -10,14 +10,15 @@ struct RootView: View {
             if state.hasCompletedOnboarding {
                 WorkbenchView()
             } else {
-                OnboardingView(onContinue: {
-                    state.hasCompletedOnboarding = true
-                })
+                OnboardingView()
             }
-            if state.showSettings { Color.clear }
+            if state.showCommandPalette {
+                CommandPaletteView()
+            }
         }
         .background(Theme.bgApp)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $state.showSettings) { SettingsView() }
     }
 }
 
