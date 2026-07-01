@@ -1,10 +1,10 @@
 # Build artifacts
 .build/
 .swiftpm/
+build/
 *.xcodeproj
 *.xcworkspace
 DerivedData/
-.build/
 
 # macOS
 .DS_Store
