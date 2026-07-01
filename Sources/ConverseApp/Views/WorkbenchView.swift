@@ -11,7 +11,6 @@ struct RootView: View {
                 WorkbenchView()
             } else {
                 OnboardingView(onContinue: {
-                    state.addSampleData()
                     state.hasCompletedOnboarding = true
                 })
             }
@@ -104,45 +103,31 @@ struct WorkspaceBar: View {
 }
 
 struct SessionSidebar: View {
-    @EnvironmentObject var state: AppState
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(state.folders) { folder in
-                Text(folder.name).font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .padding(.horizontal, Theme.Spacing.s7).padding(.top, Theme.Spacing.s7)
-                ForEach(folder.sessions) { s in
-                    HStack {
-                        Text(s.name).foregroundStyle(Theme.textPrimary)
-                        Spacer()
-                        Text(s.status.label)
-                            .font(.system(size: 10, weight: .medium))
-                            .padding(.horizontal, Theme.Spacing.s3).padding(.vertical, 1)
-                            .background(s.status == .running ? Theme.successSoft : Theme.dangerSoft,
-                                        in: RoundedRectangle(cornerRadius: Theme.Radius.xs))
-                            .foregroundStyle(s.status == .running ? Theme.success : Theme.danger)
-                    }
-                    .padding(.horizontal, Theme.Spacing.s7).padding(.vertical, Theme.Spacing.s4)
-                    .background(state.selectedSessionID == s.id ? Theme.bgMuted : .clear,
-                                in: RoundedRectangle(cornerRadius: Theme.Radius.sm))
-                }
-            }
-            Spacer()
-        }
-        .background(Theme.bgSurface)
+        SidebarView()
     }
 }
 
 struct MainColumn: View {
-    @State private var tmuxReady = false
+    @EnvironmentObject var state: AppState
 
     var body: some View {
         VStack(spacing: 0) {
-            if tmuxReady {
-                SwiftTerminalView(directory: FileManager.default.homeDirectoryForCurrentUser.path,
-                                  tmuxSessionID: "main")
+            if let session = state.selectedSession() {
+                let sid = state.tmuxShortID(for: session)
+                SwiftTerminalView(
+                    directory: session.currentCwd,
+                    tmuxSessionID: sid,
+                    onProcessTerminated: { _ in }
+                )
+                .id(sid)
             } else {
-                Color.clear
+                VStack(spacing: Theme.Spacing.s6) {
+                    Image(systemName: "terminal").font(.system(size: 32)).foregroundStyle(Theme.textTertiary)
+                    Text("选择或新建一个会话").foregroundStyle(Theme.textTertiary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Theme.bgSurface)
             }
             Divider().background(Theme.border)
             HStack(spacing: Theme.Spacing.s6) {
@@ -153,19 +138,6 @@ struct MainColumn: View {
             .background(Theme.bgSurface)
         }
         .background(Theme.bgSurface)
-        .onAppear { ensureTmux() }
-    }
-
-    private func ensureTmux() {
-        let mgr = TmuxManager()
-        do {
-            try mgr.ensureSession(
-                id: "main",
-                cwd: FileManager.default.homeDirectoryForCurrentUser.path,
-                shell: nil
-            )
-        } catch {}
-        tmuxReady = true
     }
 }
 
