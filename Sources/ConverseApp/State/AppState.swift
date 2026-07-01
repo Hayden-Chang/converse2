@@ -7,6 +7,9 @@ final class AppState: ObservableObject {
     @Published var showSettings = false
     @Published var showCommandPalette = false
     @Published var aiMode: AiMode = .suggest
+    @Published var inputDraft: String = ""
+    @Published var inputFocusToken: Int = 0
+    @Published var paletteInitialTab: PaletteTab = .sessions
 
     @Published var folders: [Folder] = []
     @Published var selectedFolderID: Int64?
@@ -27,6 +30,11 @@ final class AppState: ObservableObject {
     }
 
     var settings: SettingsService { SettingsService(db: db) }
+
+    func fillInput(_ text: String) {
+        inputDraft = text
+        inputFocusToken += 1
+    }
 
     func reload() {
         folders = (try? db.allFolders()) ?? []

@@ -13,11 +13,19 @@ struct RootView: View {
                 OnboardingView()
             }
             if state.showCommandPalette {
-                CommandPaletteView()
+                CommandPaletteView(initialTab: state.paletteInitialTab)
             }
         }
         .background(Theme.bgApp)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            Button("") {
+                state.paletteInitialTab = .history
+                state.showCommandPalette = true
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .hidden()
+        )
         .sheet(isPresented: $state.showSettings) { SettingsView() }
     }
 }
@@ -57,6 +65,7 @@ struct TopBar: View {
                 .foregroundStyle(Theme.textPrimary)
 
             Button {
+                state.paletteInitialTab = .sessions
                 state.showCommandPalette.toggle()
             } label: {
                 HStack(spacing: Theme.Spacing.s3) {
