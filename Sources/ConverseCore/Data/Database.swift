@@ -102,4 +102,35 @@ public extension AppDatabase {
     func sessions(folderId: Int64) throws -> [SessionRecord] {
         try dbQueue.read { try SessionRecord.filter(sql: "folder_id = ?", arguments: [folderId]).order(Column("sort_order")).fetchAll($0) }
     }
+    func updateFolderSortOrders(_ orders: [(id: Int64, sortOrder: Int)]) throws {
+        try dbQueue.write { db in
+            for o in orders {
+                try db.execute(sql: "UPDATE folders SET sort_order = ? WHERE id = ?", arguments: [o.sortOrder, o.id])
+            }
+        }
+    }
+    func renameSession(_ id: Int64, to name: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE sessions SET name = ? WHERE id = ?", arguments: [name, id])
+        }
+    }
+    func deleteSession(_ id: Int64) throws {
+        try dbQueue.write { db in _ = try SessionRecord.deleteOne(db, key: id) }
+    }
+    func deleteFolder(_ id: Int64) throws {
+        try dbQueue.write { db in _ = try Folder.deleteOne(db, key: id) }
+    }
+    func updateSessionStatus(_ id: Int64, _ status: SessionStatus) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE sessions SET status = ? WHERE id = ?", arguments: [status.rawValue, id])
+        }
+    }
+    func maxFolderSortOrder() throws -> Int {
+        try dbQueue.read { db in try Int.fetchOne(db, sql: "SELECT COALESCE(MAX(sort_order), 0) FROM folders") ?? 0 }
+    }
+    func maxSessionSortOrder(folderId: Int64) throws -> Int {
+        try dbQueue.read { db in
+            try Int.fetchOne(db, sql: "SELECT COALESCE(MAX(sort_order), 0) FROM sessions WHERE folder_id = ?", arguments: [folderId]) ?? 0
+        }
+    }
 }
