@@ -8,11 +8,15 @@ let package = Package(
         .executable(name: "Converse", targets: ["ConverseApp"])
     ],
     dependencies: [
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.13.0")
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.13.0"),
+        .package(url: "https://github.com/groue/GRDB.swift", from: "6.29.0")
     ],
     targets: [
         .target(
             name: "ConverseCore",
+            dependencies: [
+                .product(name: "GRDB", package: "GRDB.swift")
+            ],
             path: "Sources/ConverseCore"
         ),
         .executableTarget(
