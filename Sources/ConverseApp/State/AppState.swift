@@ -3,7 +3,7 @@ import ConverseCore
 
 @MainActor
 final class AppState: ObservableObject {
-    @Published var hasCompletedOnboarding = true
+    @Published var hasCompletedOnboarding = false
     @Published var showSettings = false
     @Published var showCommandPalette = false
     @Published var aiMode: AiMode = .suggest
@@ -17,7 +17,13 @@ final class AppState: ObservableObject {
 
     init() {
         self.db = (try? AppDatabase.shared()) ?? (try! AppDatabase(path: ":memory:"))
+        self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "converse.onboarded")
         reload()
+    }
+
+    func completeOnboarding() {
+        hasCompletedOnboarding = true
+        UserDefaults.standard.set(true, forKey: "converse.onboarded")
     }
 
     var settings: SettingsService { SettingsService(db: db) }
