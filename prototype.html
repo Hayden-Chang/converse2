@@ -1,0 +1,2382 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Converse — 对话式终端 GUI 原型 v2</title>
+<style>
+/* ============ 主题变量 ============ */
+:root[data-theme="dark"] {
+  --bg: #1e1e2e; --bg-alt: #181825; --bg-elev: #313244;
+  --bg-actbar: #11111b; --bg-side: #181825;
+  --fg: #cdd6f4; --fg-dim: #a6adc8; --fg-muted: #6c7086;
+  --accent: #89b4fa; --accent-2: #b4befe;
+  --user-bubble: #89b4fa; --ai-bubble: #313244;
+  --error: #f38ba8; --success: #a6e3a1; --warn: #f9e2af;
+  --risk-low: #a6e3a1; --risk-med: #f9e2af; --risk-high: #fab387; --risk-crit: #f38ba8;
+  --syntax-cmd: #89b4fa; --syntax-param: #94e2d5; --syntax-str: #f9e2af;
+  --syntax-path: #a6e3a1; --syntax-pipe: #f5c2e7; --syntax-var: #fab387;
+  --border: #313244; --hover: #313244; --scroll: #45475a;
+  --git-add: #a6e3a1; --git-mod: #f9e2af; --git-del: #f38ba8;
+  --ws-active-bg: #1e3a2f; --ws-active-border: #cdd6f4;
+  --item-active: #313244; --card-border: #313244;
+  --shadow: 0 8px 32px rgba(0,0,0,.4);
+  --soft-shadow: 0 1px 3px rgba(0,0,0,.3);
+  --term-bg: #11111b; --term-fg: #cdd6f4;
+}
+:root[data-theme="light"] {
+  --bg: #ffffff; --bg-alt: #f5f5fa; --bg-elev: #e6e6f0;
+  --bg-actbar: #fafafb; --bg-side: #f7f7fa;
+  --fg: #1e1e2e; --fg-dim: #6c6f85; --fg-muted: #9ca0b5;
+  --accent: #4c8bf5; --accent-2: #6c5ce7;
+  --user-bubble: #4c8bf5; --ai-bubble: #f0f0f8;
+  --error: #e85a6c; --success: #2ecc71; --warn: #f1c40f;
+  --risk-low: #2ecc71; --risk-med: #f1c40f; --risk-high: #e67e22; --risk-crit: #e85a6c;
+  --syntax-cmd: #4c8bf5; --syntax-param: #00a8a8; --syntax-str: #c79500;
+  --syntax-path: #2ecc71; --syntax-pipe: #c64baa; --syntax-var: #d35400;
+  --border: #ececf2; --hover: #ececf2; --scroll: #d8d8e4;
+  --git-add: #2ecc71; --git-mod: #f1c40f; --git-del: #e85a6c;
+  --ws-active-bg: #d4f5dd; --ws-active-border: #1a1a1a;
+  --item-active: #ececf2; --card-border: #e8e8f0;
+  --shadow: 0 8px 32px rgba(0,0,0,.12);
+  --soft-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --term-bg: #1e1e2e; --term-fg: #cdd6f4;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+  background: var(--bg); color: var(--fg);
+  font-size: 14px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+input, textarea, select { font-family: inherit; }
+.mono { font-family: "SF Mono", "JetBrains Mono", monospace; }
+
+/* ============ 顶栏 ============ */
+.topbar {
+  height: 44px; display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+}
+.topbar .logo { font-weight: 700; font-size: 15px; letter-spacing: .3px; }
+.topbar .logo span { color: var(--accent); }
+.topbar .spacer { flex: 1; }
+.topbar .search {
+  width: 240px; padding: 5px 10px; border-radius: 6px;
+  background: var(--bg-elev); color: var(--fg-dim);
+  font-size: 12px; border: 1px solid var(--border);
+  display: flex; align-items: center; gap: 6px;
+  -webkit-app-region: no-drag; cursor: pointer;
+}
+.topbar .search:hover { border-color: var(--accent); }
+.topbar .search kbd {
+  font-size: 10px; padding: 1px 5px; border-radius: 3px;
+  background: var(--bg); border: 1px solid var(--border);
+}
+
+.ai-mode-switch {
+  display: flex; gap: 2px; padding: 2px; border-radius: 7px;
+  background: var(--bg-elev); border: 1px solid var(--border);
+  -webkit-app-region: no-drag;
+}
+.ai-mode-switch button {
+  padding: 4px 10px; border-radius: 5px; font-size: 11px;
+  color: var(--fg-muted); font-weight: 500; white-space: nowrap;
+}
+.ai-mode-switch button.active { background: var(--accent); color: #fff; }
+.ai-mode-switch button.active.off { background: var(--fg-muted); }
+.ai-mode-switch button.active.err { background: var(--warn); color: #000; }
+
+.topbar .status-pill {
+  font-size: 12px; color: var(--fg-dim);
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 6px; background: var(--bg-elev);
+}
+.topbar .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+.topbar .status-pill .dot.run { background: var(--success); }
+.topbar .status-pill .dot.ok { background: var(--success); }
+.topbar .status-pill .dot.err { background: var(--error); }
+.topbar .icon-btn {
+  width: 30px; height: 30px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--fg-dim); font-size: 16px; -webkit-app-region: no-drag;
+}
+.topbar .icon-btn:hover { background: var(--hover); color: var(--fg); }
+
+/* ============ 主布局 ============ */
+.main {
+  display: grid; grid-template-columns: 60px 270px 1fr 330px;
+  height: calc(100% - 44px);
+}
+.activitybar, .sidebar, .rightbar { overflow-y: auto; }
+.activitybar {
+  background: var(--bg-actbar); border-right: 1px solid var(--border);
+  padding: 10px 0; display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.sidebar { background: var(--bg-side); border-right: 1px solid var(--border); display:flex; flex-direction:column; }
+.rightbar { background: var(--bg-alt); border-left: 1px solid var(--border); }
+.center { display: flex; flex-direction: column; overflow: hidden; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ============ 工作区切换栏 ============ */
+.ws-btn {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: var(--fg-dim);
+  background: var(--bg-elev); border: 2px solid transparent;
+  transition: all .15s ease; position: relative;
+}
+.ws-btn:hover { filter: brightness(.96); color: var(--fg); }
+.ws-btn.active { border-color: var(--ws-active-border); border-width: 2.5px; }
+.ws-btn[data-ws="C"]  { background: #f5ecd6; color: #e67e22; }
+.ws-btn[data-ws="O"]  { background: #f9e0e6; color: #c0392b; }
+.ws-btn[data-ws="P"]  { background: #e0f0d8; color: #27ae60; }
+.ws-btn[data-ws="D"]  { background: #d8eeef; color: #16a085; }
+.ws-btn .ws-dot {
+  position: absolute; bottom: 3px; right: 3px;
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.ws-btn .ws-dot.run { background: var(--success); }
+.ws-btn .ws-dot.ok { background: var(--success); }
+.ws-btn .ws-dot.err { background: var(--error); }
+.activitybar .spacer-flex { flex: 1; }
+.activitybar .ws-add {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: var(--fg-muted);
+  background: transparent; border: 2px dashed var(--border);
+  position: relative;
+}
+.activitybar .ws-add:hover { border-color: var(--accent); color: var(--accent); }
+.ws-add .tip {
+  position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%);
+  background: #1a1a1a; color: #fff; padding: 6px 10px; border-radius: 6px;
+  font-size: 12px; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 50;
+  display: flex; align-items: center; gap: 6px;
+}
+.ws-add .tip kbd { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.2); }
+.ws-add .tip::before { content:""; position: absolute; right: 100%; top: 50%; transform: translateY(-50%); border: 5px solid transparent; border-right-color: #1a1a1a; }
+.ws-add:hover .tip { opacity: 1; }
+
+/* ============ 会话列表区 ============ */
+.ws-header { padding: 14px 16px 10px; position: relative; }
+.ws-header .ws-name { font-size: 15px; font-weight: 700; color: var(--fg); display: flex; align-items: center; gap: 6px; }
+.ws-header .ws-path { font-size: 11px; color: var(--fg-muted); margin-top: 3px; font-family: "SF Mono", monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+.ws-header .ws-more { font-weight: 400; font-size: 16px; letter-spacing: 1px; color: var(--fg-muted); }
+.ws-header .ws-more:hover { color: var(--fg); }
+.ws-header .git-tag { font-size: 10px; color: var(--accent); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+
+.new-session-btn {
+  margin: 4px 16px 8px; padding: 9px 14px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--bg); border: 1px solid var(--card-border);
+  border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--fg);
+  box-shadow: var(--soft-shadow); transition: all .15s;
+}
+.new-session-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.sidebar-tabs { display:flex; gap:2px; padding: 0 16px; border-bottom: 1px solid var(--border); }
+.sidebar-tabs button { padding: 8px 10px; font-size: 12px; color: var(--fg-muted); border-bottom: 2px solid transparent; }
+.sidebar-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.side-panel { flex: 1; overflow-y: auto; padding: 8px; }
+.side-panel.hidden { display: none; }
+
+.conv-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  font-size: 13px; color: var(--fg-dim); margin-bottom: 1px;
+  transition: background .1s;
+}
+.conv-item:hover { background: var(--hover); }
+.conv-item.active { background: var(--item-active); color: var(--fg); font-weight: 500; }
+.conv-item .ci-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-item .ci-status { font-size: 10px; padding: 1px 6px; border-radius: 8px; flex-shrink: 0; font-weight: 600; }
+.ci-status.running { background: rgba(166,227,161,.18); color: var(--success); }
+.ci-status.detached { background: rgba(166,174,200,.18); color: var(--fg-dim); }
+.ci-status.closed { background: rgba(108,112,134,.18); color: var(--fg-muted); text-decoration: line-through; }
+.ci-status.missing { background: rgba(243,139,168,.18); color: var(--error); }
+.conv-item .ci-more { width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0; display: none; align-items: center; justify-content: center; font-size: 14px; color: var(--fg-muted); }
+.conv-item:hover .ci-more { display: flex; }
+.conv-item .ci-more:hover { background: var(--bg-elev); color: var(--fg); }
+
+.hist-list { display: flex; flex-direction: column; gap: 2px; }
+.hist-item { padding: 7px 10px; border-radius: 7px; cursor: pointer; border: 1px solid transparent; }
+.hist-item:hover { background: var(--hover); border-color: var(--border); }
+.hist-item .hi-cmd { font-family: "SF Mono", monospace; font-size: 12px; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-item .hi-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; font-size: 10px; color: var(--fg-muted); }
+.hist-item .hi-src { padding: 0 5px; border-radius: 3px; }
+.hi-src.user_direct { background: var(--bg-elev); color: var(--fg-dim); }
+.hi-src.ai_suggested { background: rgba(137,180,250,.18); color: var(--accent); }
+.hi-src.ai_edited { background: rgba(148,226,213,.18); color: var(--syntax-param); }
+.hi-src.retry { background: rgba(249,226,175,.18); color: var(--warn); }
+.hist-item .hi-exit.ok { color: var(--success); }
+.hist-item .hi-exit.err { color: var(--error); }
+.hist-item .hi-risk { font-weight: 600; }
+.hist-item .hi-summary { font-size: 10px; color: var(--fg-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "SF Mono", monospace; }
+.hist-empty { text-align: center; padding: 30px 10px; font-size: 12px; color: var(--fg-muted); }
+.hist-tip { font-size: 10px; color: var(--fg-muted); padding: 6px 10px; line-height: 1.5; }
+
+.sidebar-section { padding: 8px 16px 14px; border-top: 1px solid var(--border); }
+.sidebar-section h4 { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--fg-muted); margin-bottom: 8px; font-weight: 600; display: flex; align-items: center; }
+.sidebar-section h4 .snip-add { margin-left: auto; width: 18px; height: 18px; border-radius: 5px; font-size: 14px; color: var(--fg-muted); line-height: 1; }
+.sidebar-section h4 .snip-add:hover { background: var(--hover); color: var(--accent); }
+.trust-switch { display: flex; gap: 4px; }
+.trust-switch button { flex: 1; padding: 5px; border-radius: 6px; font-size: 11px; background: var(--bg); color: var(--fg-dim); border: 1px solid var(--border); }
+.trust-switch button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.snippet-list { font-size: 11px; color: var(--fg-dim); display: flex; flex-direction: column; gap: 5px; }
+.snippet-list .snip { display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 3px 4px; border-radius: 5px; }
+.snippet-list .snip:hover { background: var(--hover); }
+.snippet-list kbd { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--bg); border: 1px solid var(--border); }
+.snippet-list .snip-cmd { font-family: monospace; color: var(--fg-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snippet-list .snip-del { width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0; display: none; align-items: center; justify-content: center; font-size: 14px; color: var(--fg-muted); line-height: 1; }
+.snippet-list .snip:hover .snip-del { display: flex; }
+.snippet-list .snip-del:hover { background: var(--error); color: #fff; }
+
+/* ============ 中栏 ============ */
+.center-head {
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; background: var(--bg);
+}
+.center-head .s-title { font-weight: 600; font-size: 14px; }
+.center-head .s-meta { font-size: 11px; color: var(--fg-muted); }
+.center-head .sess-status { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+.sess-status.running { background: rgba(166,227,161,.18); color: var(--success); }
+.sess-status.detached { background: rgba(166,174,200,.18); color: var(--fg-dim); }
+.sess-status.missing { background: rgba(243,139,168,.18); color: var(--error); }
+.center-head .focus-tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--accent); color: #fff; display: none; }
+.center-head .focus-tag.show { display: inline-block; }
+.center-head .head-actions { margin-left: auto; display: flex; gap: 6px; }
+.center-head .head-actions button { padding: 4px 10px; border-radius: 6px; font-size: 12px; background: var(--bg-elev); color: var(--fg-dim); border: 1px solid var(--border); }
+.center-head .head-actions button:hover { background: var(--hover); }
+
+.conv-stream { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+.msg { max-width: 80%; animation: fadeIn .25s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.msg.user { align-self: flex-end; background: var(--user-bubble); color: #fff; padding: 9px 14px; border-radius: 14px 14px 4px 14px; font-size: 13px; }
+.msg.user.cmd-src { font-family: "SF Mono", monospace; }
+
+.msg.ai { align-self: flex-start; background: var(--ai-bubble); color: var(--fg); padding: 12px 14px; border-radius: 14px 14px 14px 4px; border: 1px solid var(--border); font-size: 13px; max-width: 72%; }
+.msg.ai .ai-label { font-size: 11px; color: var(--fg-muted); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.msg.ai .ai-label .based-on { background: var(--bg); padding: 1px 6px; border-radius: 3px; font-family: monospace; font-size: 10px; }
+.msg.ai .cmd { font-family: "SF Mono", monospace; font-size: 13px; background: var(--bg); color: var(--syntax-cmd); padding: 8px 12px; border-radius: 6px; margin: 6px 0; border: 1px solid var(--border); white-space: pre-wrap; word-break: break-all; }
+.msg.ai .risk-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 11px; }
+.msg.ai .risk-badge { padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 10px; }
+.risk-badge.low { background: rgba(166,227,161,.2); color: var(--risk-low); }
+.risk-badge.medium { background: rgba(249,226,175,.2); color: var(--risk-med); }
+.risk-badge.high { background: rgba(250,179,135,.2); color: var(--risk-high); }
+.risk-badge.critical { background: rgba(243,139,168,.22); color: var(--risk-crit); }
+.msg.ai .impact { color: var(--fg-muted); }
+.msg.ai .candidates { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 11px; color: var(--fg-muted); }
+.msg.ai .candidates .nav { display: flex; gap: 4px; }
+.msg.ai .candidates .nav button { width: 20px; height: 20px; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); color: var(--fg-dim); font-size: 10px; }
+.msg.ai .candidates .nav button:hover { background: var(--hover); }
+.msg.ai .actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+.msg.ai .actions button { padding: 5px 12px; border-radius: 6px; font-size: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--fg-dim); }
+.msg.ai .actions button:hover { background: var(--hover); }
+.msg.ai .actions .btn-exec { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+.msg.ai .actions .btn-exec:hover { opacity: .9; }
+.msg.ai .actions .ai-status { font-size: 11px; color: var(--success); }
+.msg.ai .feedback { display: inline-flex; gap: 4px; margin-left: 8px; }
+.msg.ai .feedback button { width: 24px; height: 24px; border-radius: 50%; background: var(--bg); border: 1px solid var(--border); font-size: 12px; }
+.msg.ai .feedback button:hover { background: var(--hover); }
+.msg.ai .feedback button.liked { color: var(--success); border-color: var(--success); }
+.msg.ai .feedback button.disliked { color: var(--error); border-color: var(--error); }
+
+.msg.output { align-self: flex-start; max-width: 90%; width: 90%; font-family: "SF Mono", monospace; font-size: 12px; }
+.msg.output .out-header { display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 6px 6px 0 0; font-size: 11px; color: var(--fg-muted); cursor: pointer; }
+.msg.output .out-header .arrow { transition: transform .15s; }
+.msg.output.collapsed .out-header .arrow { transform: rotate(-90deg); }
+.msg.output .out-header .exit-code { margin-left: auto; }
+.msg.output .out-header .exit-code.ok { color: var(--success); }
+.msg.output .out-header .exit-code.err { color: var(--error); }
+.msg.output .out-header .src-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--bg); }
+.msg.output .out-body { background: var(--bg-alt); padding: 10px 14px; border: 1px solid var(--border); border-top: none; border-radius: 0 0 6px 6px; white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow-y: auto; color: var(--fg-dim); }
+.msg.output.collapsed .out-body { display: none; }
+.msg.output .out-truncated { font-size: 10px; color: var(--fg-muted); padding: 4px 12px 8px; background: var(--bg-alt); border: 1px solid var(--border); border-top: none; border-radius: 0 0 6px 6px; }
+
+.msg.fail { align-self: flex-start; max-width: 72%; background: var(--bg-elev); border: 1px solid var(--error); border-radius: 10px; padding: 12px 14px; font-size: 13px; }
+.msg.fail .f-label { font-size: 12px; color: var(--error); margin-bottom: 6px; font-weight: 600; }
+.msg.fail .f-reason { font-size: 11px; color: var(--fg-muted); margin-bottom: 8px; font-family: monospace; }
+.msg.fail .f-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.msg.fail .f-actions button { padding: 5px 12px; border-radius: 6px; font-size: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--fg-dim); }
+.msg.fail .f-actions button:hover { background: var(--hover); }
+.msg.fail .f-actions .btn-ai { border-color: var(--accent); color: var(--accent); }
+
+.msg.suggest { align-self: flex-start; max-width: 72%; background: var(--bg-elev); border: 1px solid var(--warn); border-radius: 10px; padding: 12px 14px; font-size: 13px; }
+.msg.suggest .s-label { font-size: 11px; color: var(--warn); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.msg.suggest .s-cmd { font-family: monospace; background: var(--bg); color: var(--syntax-cmd); padding: 6px 10px; border-radius: 5px; margin: 6px 0; border: 1px solid var(--border); }
+.msg.suggest .s-actions { display: flex; gap: 6px; margin-top: 8px; }
+.msg.suggest .s-actions button { padding: 4px 10px; border-radius: 5px; font-size: 11px; background: var(--bg); border: 1px solid var(--border); color: var(--fg-dim); }
+
+.msg.explain { align-self: flex-start; max-width: 75%; background: var(--bg-alt); border: 1px solid var(--accent); border-radius: 10px; padding: 14px; font-size: 13px; }
+.msg.explain .e-title { font-size: 12px; color: var(--accent); margin-bottom: 8px; font-family: monospace; }
+.msg.explain .e-section { margin: 6px 0; }
+.msg.explain .e-section .param { font-family: monospace; color: var(--syntax-param); font-weight: 600; }
+.msg.explain .e-section .desc { color: var(--fg-dim); margin-left: 8px; }
+
+.msg.system { align-self: center; max-width: 80%; background: var(--bg-elev); border: 1px dashed var(--border); border-radius: 8px; padding: 8px 14px; font-size: 12px; color: var(--fg-muted); text-align: center; }
+
+/* ============ 终端焦点模式 ============ */
+.focus-screen {
+  flex: 1; display: none; flex-direction: column;
+  background: var(--term-bg); color: var(--term-fg);
+  font-family: "SF Mono", monospace; font-size: 13px;
+  padding: 16px 20px; overflow-y: auto; line-height: 1.5; cursor: text;
+}
+.focus-screen.show { display: flex; }
+.focus-screen:focus { box-shadow: inset 0 0 0 2px var(--accent); outline: none; }
+.focus-screen .fs-bar { font-size: 11px; color: var(--fg-muted); margin-bottom: 12px; display: flex; align-items: center; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.focus-screen .fs-bar .exit-hint { margin-left: auto; }
+.focus-screen .fs-bar kbd { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--bg-elev); border: 1px solid var(--border); }
+.focus-screen .fs-content { white-space: pre-wrap; }
+.focus-screen .fs-cursor { display: inline-block; width: 8px; height: 15px; background: var(--term-fg); vertical-align: middle; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* sudo 密码态 */
+.sudo-zone { border-top: 1px solid var(--border); padding: 12px 24px 16px; background: var(--bg); display: none; }
+.sudo-zone.show { display: block; }
+.sudo-zone .sudo-label { font-size: 12px; color: var(--warn); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.sudo-zone .sudo-note { font-size: 10px; color: var(--fg-muted); margin-top: 6px; }
+.sudo-zone .sudo-input { display: flex; gap: 8px; align-items: center; }
+.sudo-zone input { flex: 1; padding: 8px 12px; border-radius: 6px; background: var(--bg-alt); border: 1px solid var(--border); color: var(--fg); font-size: 13px; -webkit-text-security: disc; }
+.sudo-zone button { padding: 8px 16px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 13px; }
+
+/* ============ 输入区 ============ */
+.input-zone { border-top: 1px solid var(--border); padding: 12px 24px 16px; background: var(--bg); }
+.input-zone.disabled { opacity: .45; pointer-events: none; }
+
+.context-chips { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.context-chips .chip { font-size: 10px; padding: 2px 7px; border-radius: 4px; background: var(--bg-elev); color: var(--fg-muted); display: flex; align-items: center; gap: 4px; }
+
+.judge-hint { font-size: 11px; color: var(--fg-muted); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; height: 16px; flex-wrap: wrap; }
+.judge-hint .tag { padding: 1px 6px; border-radius: 3px; font-size: 10px; }
+.judge-hint .tag.cmd { background: var(--success); color: #fff; }
+.judge-hint .tag.nl { background: var(--accent); color: #fff; }
+.judge-hint .tag.uncertain { background: var(--warn); color: #000; }
+.judge-hint .risk-mini { padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; }
+.judge-hint .override { margin-left: auto; color: var(--fg-muted); }
+.judge-hint .override kbd { font-size: 10px; padding: 1px 4px; border-radius: 3px; background: var(--bg-elev); border: 1px solid var(--border); }
+
+.input-row { display: flex; align-items: flex-end; gap: 8px; }
+.input-box { flex: 1; position: relative; }
+.input-box textarea { width: 100%; min-height: 40px; max-height: 120px; padding: 10px 14px; border-radius: 8px; background: var(--bg-alt); color: var(--fg); border: 1px solid var(--border); font-size: 13px; font-family: "SF Mono", "JetBrains Mono", monospace; resize: none; outline: none; line-height: 1.6; transition: border-color .15s; }
+.input-box textarea:focus { border-color: var(--accent); }
+.input-box .highlight-overlay { position: absolute; top: 0; left: 0; right: 0; padding: 10px 14px; font-size: 13px; font-family: "SF Mono", monospace; line-height: 1.6; pointer-events: none; white-space: pre-wrap; word-break: break-word; color: transparent; overflow: hidden; max-height: 120px; }
+.input-box .highlight-overlay .tok-cmd { color: var(--syntax-cmd); }
+.input-box .highlight-overlay .tok-param { color: var(--syntax-param); }
+.input-box .highlight-overlay .tok-str { color: var(--syntax-str); }
+.input-box .highlight-overlay .tok-path { color: var(--syntax-path); }
+.input-box .highlight-overlay .tok-pipe { color: var(--syntax-pipe); font-weight: 700; }
+.input-box .highlight-overlay .tok-var { color: var(--syntax-var); }
+
+.autocomplete { position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 4px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow); max-height: 200px; overflow-y: auto; display: none; z-index: 10; }
+.hist-hint { position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 4px; background: var(--bg-elev); border: 1px solid var(--accent); border-radius: 6px; box-shadow: var(--shadow); max-height: 240px; overflow-y: auto; display: none; z-index: 12; }
+.hist-hint.show { display: block; }
+.hist-hint .hh-head { font-size: 10px; color: var(--accent); padding: 5px 12px 3px; text-transform: uppercase; letter-spacing: .4px; }
+.hist-hint .hh-item { padding: 7px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; border-top: 1px solid var(--border); border-left: 3px solid transparent; }
+.hist-hint .hh-item.sel { background: rgba(137,180,250,.18); border-left-color: var(--accent); }
+.hist-hint .hh-cmd { font-family: "SF Mono", monospace; font-size: 12px; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-hint .hh-meta { font-size: 10px; color: var(--fg-muted); flex-shrink: 0; }
+.autocomplete.show { display: block; }
+.autocomplete .ac-item { padding: 6px 12px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-family: monospace; }
+.autocomplete .ac-item:hover, .autocomplete .ac-item.sel { background: rgba(137,180,250,.18); }
+.autocomplete .ac-item .ac-param { color: var(--syntax-param); }
+.autocomplete .ac-item .ac-desc { color: var(--fg-muted); font-family: -apple-system, sans-serif; }
+
+.send-btn { padding: 10px 18px; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; font-size: 13px; }
+.send-btn:hover { opacity: .9; }
+
+.quick-keys { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.quick-keys button { padding: 3px 9px; border-radius: 4px; font-size: 11px; background: var(--bg-alt); border: 1px solid var(--border); color: var(--fg-muted); font-family: monospace; }
+.quick-keys button:hover { background: var(--hover); }
+
+/* ============ 右栏 Git (只读) ============ */
+.rightbar { padding: 14px; }
+.rightbar h3 { font-size: 13px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.rightbar .git-branch { font-family: monospace; font-size: 12px; color: var(--accent); background: var(--bg-elev); padding: 3px 8px; border-radius: 4px; }
+.rightbar .git-refresh { margin-left: auto; font-size: 14px; color: var(--fg-muted); width: 24px; height: 24px; border-radius: 5px; display: flex; align-items: center; justify-content: center; }
+.rightbar .git-refresh:hover { background: var(--hover); color: var(--fg); }
+.git-readonly-note { font-size: 10px; color: var(--fg-muted); padding: 6px 8px; background: var(--bg-elev); border-radius: 5px; margin-bottom: 12px; line-height: 1.5; }
+.git-stage-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.git-stage-tabs button { padding: 4px 10px; border-radius: 5px; font-size: 11px; background: var(--bg); color: var(--fg-muted); border: 1px solid var(--border); }
+.git-stage-tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.git-files { margin-bottom: 14px; }
+.git-file { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 5px; font-size: 12px; cursor: pointer; }
+.git-file:hover { background: var(--hover); }
+.git-file.sel { background: var(--item-active); }
+.git-file .status { width: 16px; text-align: center; font-weight: 700; }
+.git-file .status.M { color: var(--git-mod); }
+.git-file .status.A { color: var(--git-add); }
+.git-file .status.D { color: var(--git-del); }
+.git-file .name { flex: 1; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.git-diff { font-family: monospace; font-size: 11px; line-height: 1.5; background: var(--bg); border-radius: 6px; padding: 10px; border: 1px solid var(--border); max-height: 280px; overflow-y: auto; }
+.git-diff .line-add { color: var(--git-add); }
+.git-diff .line-del { color: var(--git-del); }
+.git-diff .line-meta { color: var(--fg-muted); }
+
+.rightbar .panel-tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+.rightbar .panel-tabs button { padding: 6px 12px; font-size: 12px; color: var(--fg-muted); border-bottom: 2px solid transparent; }
+.rightbar .panel-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.ctx-info { font-size: 11px; color: var(--fg-dim); }
+.ctx-info .ctx-row { display: flex; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.ctx-info .ctx-row .ck { color: var(--fg-muted); width: 80px; flex-shrink: 0; }
+.ctx-info .ctx-row .cv { font-family: monospace; word-break: break-all; }
+
+/* ============ 通用 Modal ============ */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 100; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; width: 480px; max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow); }
+.modal.wide { width: 620px; }
+.modal h3 { margin-bottom: 14px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.modal .modal-cmd { font-family: monospace; font-size: 12px; background: var(--bg-alt); padding: 10px; border-radius: 6px; border: 1px solid var(--border); margin: 10px 0; white-space: pre-wrap; color: var(--syntax-cmd); }
+.modal input[type=text], .modal input[type=password] { width: 100%; padding: 8px 10px; border-radius: 6px; background: var(--bg-alt); border: 1px solid var(--border); color: var(--fg); font-size: 13px; margin: 6px 0; }
+.modal select { width: 100%; padding: 8px 10px; border-radius: 6px; background: var(--bg-alt); border: 1px solid var(--border); color: var(--fg); font-size: 13px; margin: 6px 0; }
+.modal label { font-size: 12px; color: var(--fg-muted); display: block; margin-top: 10px; margin-bottom: 2px; }
+.modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.modal .modal-actions button { padding: 8px 16px; border-radius: 6px; font-size: 13px; background: var(--bg-elev); border: 1px solid var(--border); color: var(--fg-dim); }
+.modal .modal-actions .primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.risk-confirm-box { border-radius: 8px; padding: 12px; margin: 10px 0; }
+.risk-confirm-box.critical { background: rgba(243,139,168,.1); border: 1px solid var(--risk-crit); }
+.risk-confirm-box.high { background: rgba(250,179,135,.1); border: 1px solid var(--risk-high); }
+.risk-confirm-box.medium { background: rgba(249,226,175,.1); border: 1px solid var(--risk-med); }
+.risk-confirm-box .rc-level { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.risk-confirm-box.critical .rc-level { color: var(--risk-crit); }
+.risk-confirm-box.high .rc-level { color: var(--risk-high); }
+.risk-confirm-box.medium .rc-level { color: var(--risk-med); }
+.risk-confirm-box .rc-rules { font-size: 11px; color: var(--fg-dim); margin: 6px 0; }
+.risk-confirm-box .rc-rules li { margin-left: 16px; }
+.risk-confirm-box .rc-impact { font-size: 12px; margin-top: 8px; padding: 6px 8px; background: var(--bg); border-radius: 5px; font-family: monospace; }
+.countdown-box { font-size: 12px; color: var(--risk-crit); margin-top: 8px; }
+.countdown-box .num { font-weight: 700; font-size: 16px; }
+
+/* 设置页 */
+.settings-nav { display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+.settings-nav button { padding: 8px 14px; font-size: 12px; color: var(--fg-muted); border-bottom: 2px solid transparent; }
+.settings-nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+.settings-section { display: none; }
+.settings-section.active { display: block; }
+.set-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+.set-row .set-label { font-size: 13px; }
+.set-row .set-desc { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+.set-row input, .set-row select { width: 240px; padding: 6px 10px; border-radius: 6px; background: var(--bg-alt); border: 1px solid var(--border); color: var(--fg); font-size: 12px; }
+.seg { display: flex; gap: 2px; padding: 2px; border-radius: 7px; background: var(--bg-elev); border: 1px solid var(--border); }
+.seg button { padding: 5px 12px; border-radius: 5px; font-size: 11px; color: var(--fg-muted); }
+.seg button.active { background: var(--accent); color: #fff; }
+.toggle { width: 38px; height: 22px; border-radius: 11px; background: var(--bg-elev); border: 1px solid var(--border); position: relative; cursor: pointer; transition: background .15s; flex-shrink:0; }
+.toggle.on { background: var(--accent); }
+.toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+.toggle.on::after { left: 18px; }
+.api-key-status { font-size: 11px; padding: 6px 10px; border-radius: 5px; margin-top: 6px; }
+.api-key-status.ok { background: rgba(166,227,161,.15); color: var(--success); }
+.api-key-status.warn { background: rgba(249,226,175,.15); color: var(--warn); }
+
+/* ⌘K 命令面板 */
+.palette-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: flex-start; justify-content: center; z-index: 150; padding-top: 12vh; }
+.palette-overlay.show { display: flex; }
+.palette { width: 560px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+.palette input { width: 100%; padding: 14px 18px; border: none; background: transparent; color: var(--fg); font-size: 15px; outline: none; border-bottom: 1px solid var(--border); }
+.palette .pal-tabs { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.palette .pal-tabs button { padding: 4px 10px; border-radius: 5px; font-size: 11px; color: var(--fg-muted); }
+.palette .pal-tabs button.active { background: var(--accent); color: #fff; }
+.palette .pal-results { max-height: 360px; overflow-y: auto; padding: 6px; }
+.palette .pal-group { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--fg-muted); padding: 8px 10px 4px; }
+.palette .pal-item { padding: 8px 10px; border-radius: 7px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.palette .pal-item.sel, .palette .pal-item:hover { background: var(--hover); }
+.palette .pal-item .pi-icon { width: 22px; text-align: center; color: var(--fg-muted); }
+.palette .pal-item .pi-main { flex: 1; overflow: hidden; }
+.palette .pal-item .pi-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette .pal-item .pi-sub { font-size: 11px; color: var(--fg-muted); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette .pal-empty { padding: 30px; text-align: center; color: var(--fg-muted); font-size: 13px; }
+.palette .pal-foot { padding: 8px 14px; border-top: 1px solid var(--border); font-size: 10px; color: var(--fg-muted); display: flex; gap: 12px; }
+.palette .pal-foot kbd { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--bg-elev); border: 1px solid var(--border); }
+
+/* Onboarding */
+.onboard-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 200; }
+.onboard-overlay.show { display: flex; }
+.onboard { width: 540px; background: var(--bg); border: 1px solid var(--border); border-radius: 16px; padding: 32px; box-shadow: var(--shadow); }
+.onboard .ob-logo { font-size: 26px; font-weight: 800; text-align: center; margin-bottom: 6px; }
+.onboard .ob-logo span { color: var(--accent); }
+.onboard .ob-sub { text-align: center; color: var(--fg-muted); font-size: 13px; margin-bottom: 24px; }
+.onboard .ob-step { display: none; }
+.onboard .ob-step.active { display: block; }
+.onboard .ob-step h2 { font-size: 17px; margin-bottom: 10px; }
+.onboard .ob-step p { font-size: 13px; color: var(--fg-dim); margin-bottom: 14px; line-height: 1.6; }
+.onboard .ob-features { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
+.onboard .ob-feat { display: flex; gap: 10px; align-items: flex-start; padding: 10px; background: var(--bg-alt); border-radius: 8px; }
+.onboard .ob-feat .of-ico { font-size: 18px; }
+.onboard .ob-feat .of-txt { font-size: 12px; }
+.onboard .ob-feat .of-txt b { display: block; margin-bottom: 2px; }
+.onboard .ob-feat .of-txt span { color: var(--fg-muted); }
+.onboard .ob-choice { display: flex; gap: 10px; margin: 14px 0; }
+.onboard .ob-choice .ob-card { flex: 1; padding: 16px; border-radius: 10px; border: 2px solid var(--border); cursor: pointer; text-align: center; }
+.onboard .ob-choice .ob-card.sel { border-color: var(--accent); background: rgba(137,180,250,.08); }
+.onboard .ob-choice .ob-card .oc-ico { font-size: 24px; margin-bottom: 6px; }
+.onboard .ob-choice .ob-card .oc-t { font-weight: 600; font-size: 13px; }
+.onboard .ob-choice .ob-card .oc-d { font-size: 11px; color: var(--fg-muted); margin-top: 4px; }
+.onboard .ob-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+.onboard .ob-dots { display: flex; gap: 6px; }
+.onboard .ob-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--bg-elev); }
+.onboard .ob-dots span.active { background: var(--accent); }
+.onboard .ob-actions button { padding: 9px 18px; border-radius: 8px; font-size: 13px; }
+.onboard .ob-actions .ob-prev { background: var(--bg-elev); color: var(--fg-dim); }
+.onboard .ob-actions .ob-next { background: var(--accent); color: #fff; font-weight: 600; }
+.onboard .ob-actions .ob-skip { background: transparent; color: var(--fg-muted); font-size: 12px; }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--bg-elev); border: 1px solid var(--border); padding: 10px 18px; border-radius: 8px; font-size: 13px; box-shadow: var(--shadow); z-index: 300; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+.menu { position: fixed; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); padding: 4px; z-index: 250; min-width: 180px; display: none; }
+.menu.show { display: block; }
+.menu button { display: flex; width: 100%; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 5px; font-size: 12px; color: var(--fg-dim); text-align: left; }
+.menu button:hover { background: var(--hover); color: var(--fg); }
+.menu button.danger { color: var(--error); }
+.menu .sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+@media (max-width: 1000px) {
+  .main { grid-template-columns: 60px 240px 1fr; }
+  .rightbar { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ 顶栏 ============ -->
+<div class="topbar">
+  <div class="logo">Con<span>verse</span></div>
+  <div class="search" onclick="openPalette()">
+    <span>搜索会话、命令、历史…</span>
+    <span class="spacer" style="flex:1"></span>
+    <kbd>⌘K</kbd>
+  </div>
+  <div class="spacer"></div>
+
+  <div class="ai-mode-switch" id="aiModeSwitch" title="AI 功能模式">
+    <button data-mode="off">AI 关闭</button>
+    <button data-mode="suggest" class="active">AI 建议</button>
+    <button data-mode="error_assist">报错辅助</button>
+  </div>
+
+  <div class="status-pill" id="statusPill" title="会话状态汇总">
+    <span class="dot run"></span>
+    <span id="statusText">3 运行</span>
+  </div>
+
+  <button class="icon-btn" id="themeBtn" title="切换主题">🌙</button>
+  <button class="icon-btn" id="settingsBtn" title="设置">⚙</button>
+</div>
+
+<!-- ============ 主布局 ============ -->
+<div class="main">
+  <div class="activitybar" id="activitybar">
+    <button class="ws-btn active" data-ws="C" data-folder="f_converse" title="converse">C<span class="ws-dot run"></span></button>
+    <button class="ws-btn" data-ws="O" data-folder="f_other" title="other-proj">O<span class="ws-dot ok"></span></button>
+    <button class="ws-btn" data-ws="P" data-folder="f_blog" title="personal-blog">P</button>
+    <button class="ws-btn" data-ws="D" data-folder="f_db" title="db-course">D<span class="ws-dot err"></span></button>
+    <button class="ws-add" onclick="addFolder()" title="打开/添加文件夹">
+      +<span class="tip">打开项目文件夹 <kbd>⌘O</kbd></span>
+    </button>
+    <div class="spacer-flex"></div>
+  </div>
+
+  <div class="sidebar">
+    <div class="ws-header">
+      <div class="ws-name" id="folderName"><span id="folderNameTxt">converse</span> <button class="ws-more" onclick="folderMenu(event)">⋯</button></div>
+      <div class="ws-path" id="folderPath">/Volumes/mac2/projects/git_repo/run_self/converse</div>
+      <div class="git-tag" id="folderGit">⎇ git · main · 3 改动</div>
+    </div>
+
+    <button class="new-session-btn" onclick="newSession()">
+      <span>✎</span><span>New session</span>
+    </button>
+
+    <div class="side-panel" id="side-sessions">
+      <div class="conv-list" id="convList"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <h4>信任级别</h4>
+      <div class="trust-switch" id="trustSwitch">
+        <button class="active" data-level="L0">L0 确认</button>
+        <button data-level="L1">L1 白名单</button>
+        <button data-level="L2">L2 会话</button>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <h4>片段 (Snippets) <button class="snip-add" onclick="addSnippet()" title="新建片段">+</button></h4>
+      <div class="snippet-list" id="snippetList"></div>
+    </div>
+  </div>
+
+  <div class="center">
+    <div class="center-head">
+      <span class="s-title" id="sessionTitle">安装依赖</span>
+      <span class="sess-status running" id="sessionStatus">运行</span>
+      <span class="focus-tag" id="focusTag">终端模式</span>
+      <span class="s-meta" id="sessionMeta">tmux: converse_s1 · /Volumes/.../converse</span>
+      <span class="head-actions">
+        <button onclick="enterFocusDemo()" title="进入 vim 终端模式">终端模式</button>
+        <button onclick="closeCurrentSession()" title="关闭会话(kill tmux)">关闭会话</button>
+      </span>
+    </div>
+
+    <div class="focus-screen" id="focusScreen" tabindex="0">
+      <div class="fs-bar">
+        <span id="fsProg">vim</span>
+        <span style="color:var(--fg-muted)">· 键盘直通 pty · 底部输入框已禁用 · 点击屏幕获取焦点</span>
+        <span class="exit-hint"><span id="fsHint">按字母键编辑，Esc / Ctrl+C 退出</span> · <button onclick="exitFocus()" style="color:var(--accent);text-decoration:underline">退出终端</button></span>
+      </div>
+      <div class="fs-content" id="fsContent"></div>
+    </div>
+
+    <div class="conv-stream" id="convStream"></div>
+
+    <div class="sudo-zone" id="sudoZone">
+      <div class="sudo-label">🔐 shell 正在等待密码 (sudo)</div>
+      <div class="sudo-input">
+        <input type="password" id="sudoInput" placeholder="输入密码（不显示、不存储、不发给 AI）" autocomplete="off" onkeydown="if(event.key==='Enter')submitSudo()">
+        <button onclick="submitSudo()">提交</button>
+      </div>
+      <div class="sudo-note">密码仅发送到 pty，不会写入历史、日志、SQLite 或 AI 上下文</div>
+    </div>
+
+    <div class="input-zone" id="inputZone">
+      <div class="context-chips" id="contextChips"></div>
+      <div class="judge-hint" id="judgeHint">
+        <span style="color:var(--fg-muted)">输入命令直接执行，或说自然语言让 AI 翻译</span>
+        <span class="override"><kbd>⌘↵</kbd> 强制命令 · <kbd>⌥↵</kbd> 强制翻译</span>
+      </div>
+      <div class="input-row">
+        <div class="input-box">
+          <div class="hist-hint" id="histHint"></div>
+          <div class="autocomplete" id="autocomplete"></div>
+          <div class="highlight-overlay" id="highlightOverlay"></div>
+          <textarea id="input" placeholder="说点什么或打个命令…" rows="1"
+            oninput="onInput()" onkeydown="onKeyDown(event)"></textarea>
+        </div>
+        <button class="send-btn" onclick="sendInput()">发送</button>
+      </div>
+      <div class="quick-keys">
+        <button onclick="quickKey('Ctrl+C')">Ctrl+C</button>
+        <button onclick="quickKey('Ctrl+D')">Ctrl+D</button>
+        <button onclick="quickKey('Tab')">Tab</button>
+        <button onclick="histNav(1)">↑ 历史</button>
+        <button onclick="openPalette()">⌘K 搜索</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="rightbar">
+    <div class="panel-tabs">
+      <button class="active" onclick="switchPanel(this,'git')">Git 审查</button>
+      <button onclick="switchPanel(this,'context')">上下文</button>
+    </div>
+
+    <div id="panel-git">
+      <h3>分支 <span class="git-branch">main</span><button class="git-refresh" onclick="refreshGit()" title="刷新">↻</button></h3>
+      <div class="git-readonly-note">🔒 只读面板 · commit/push 等操作请通过命令或 AI 命令完成（如「提交 README，说明：更新文档」）</div>
+      <div class="git-stage-tabs">
+        <button class="active" onclick="switchStage(this,'unstaged')">未暂存 (2)</button>
+        <button onclick="switchStage(this,'staged')">已暂存 (1)</button>
+      </div>
+      <div class="git-files" id="gitFiles"></div>
+      <div class="git-diff" id="gitDiff"></div>
+    </div>
+
+    <div id="panel-context" style="display:none">
+      <h3>AI 上下文</h3>
+      <div class="ctx-info" id="ctxInfo"></div>
+      <div class="api-key-status warn" style="margin-top:14px">⛔ 永不发送：sudo 密码 · API key · token · 私钥 · .env 内容（脱敏管线强制过滤）</div>
+    </div>
+  </div>
+</div>
+
+<!-- 风险确认 Modal -->
+<div class="modal-overlay" id="riskModal">
+  <div class="modal">
+    <h3 id="riskTitle">⚠ 命令风险确认</h3>
+    <div id="riskBody"></div>
+    <div class="modal-actions">
+      <button onclick="closeRiskModal()">取消</button>
+      <button class="primary" id="riskConfirm" onclick="confirmRisk()">确认执行</button>
+    </div>
+  </div>
+</div>
+
+<!-- 设置 Modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal wide">
+    <h3>⚙ 设置</h3>
+    <div class="settings-nav">
+      <button class="active" onclick="switchSettings(this,'ai')">AI</button>
+      <button onclick="switchSettings(this,'terminal')">终端</button>
+      <button onclick="switchSettings(this,'risk')">风险与确认</button>
+      <button onclick="switchSettings(this,'history')">历史与输出</button>
+      <button onclick="switchSettings(this,'privacy')">隐私</button>
+    </div>
+    <div class="settings-section active" id="set-ai">
+      <div class="set-row">
+        <div><div class="set-label">AI 模式</div><div class="set-desc">关闭 / 建议 / 报错辅助</div></div>
+        <div class="seg" id="setAiMode">
+          <button data-mode="off">关闭</button>
+          <button data-mode="suggest" class="active">建议</button>
+          <button data-mode="error_assist">报错辅助</button>
+        </div>
+      </div>
+      <div class="set-row"><div><div class="set-label">Provider</div><div class="set-desc">OpenAI-compatible 云端 API</div></div><select id="setProvider"><option>deepseek</option><option>openai</option><option>custom</option></select></div>
+      <div class="set-row"><div><div class="set-label">API Base URL</div></div><input type="text" id="setBaseUrl" value="https://api.deepseek.com"></div>
+      <div class="set-row"><div><div class="set-label">默认模型</div></div><input type="text" id="setModel" value="deepseek-v4-flash"></div>
+      <div class="set-row"><div><div class="set-label">强模型</div><div class="set-desc">复杂多步 / 风险解释 / 失败修复</div></div><input type="text" id="setStrongModel" value="deepseek-v4-flash"></div>
+      <div class="set-row"><div><div class="set-label">API Key</div><div class="set-desc">仅保存引用，真实 key 存系统安全存储 / 环境变量</div></div><input type="text" id="setApiKeyRef" value="env:DEEPSEEK_API_KEY"></div>
+      <div class="api-key-status ok" id="apiKeyStatus">✓ 环境变量 DEEPSEEK_API_KEY 已可用，可直接使用 DeepSeek 默认配置</div>
+      <div class="set-row"><div><div class="set-label">Few-shot 关键词匹配数</div><div class="set-desc">TF-IDF Top-N 示例注入 prompt</div></div><input type="text" id="setFewShot" value="3" style="width:80px"></div>
+    </div>
+    <div class="settings-section" id="set-terminal">
+      <div class="set-row"><div><div class="set-label">默认 Shell</div></div><input type="text" id="setShell" value="/bin/zsh"></div>
+      <div class="set-row"><div><div class="set-label">tmux namespace</div><div class="set-desc">Converse 只管理此命名空间下的 tmux 会话</div></div><input type="text" id="setTmuxNs" value="converse"></div>
+      <div class="set-row"><div><div class="set-label">会话恢复策略</div><div class="set-desc">keep_alive: App 退出不杀 tmux</div></div><div class="seg"><button class="active">keep_alive</button><button>close_on_exit</button></div></div>
+    </div>
+    <div class="settings-section" id="set-risk">
+      <div class="set-row"><div><div class="set-label">确认策略</div><div class="set-desc">standard：中风险仅提示；strict：中风险也需确认</div></div><div class="seg" id="setRiskPolicy"><button class="active" data-policy="standard">standard</button><button data-policy="strict">strict</button></div></div>
+      <div class="set-row"><div><div class="set-label">高风险命令</div><div class="set-desc">rm -rf / git reset --hard / 批量删除 → 强确认 + 影响范围</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="set-row"><div><div class="set-label">极高风险倒计时</div><div class="set-desc">sudo rm / dd / mkfs / 网络脚本 → 倒计时确认</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+    <div class="settings-section" id="set-history">
+      <div class="set-row"><div><div class="set-label">输出摘要限制</div><div class="set-desc">不保存完整大输出（暂不可修改）</div></div><input type="text" value="最后 8KB / 200 行" style="width:180px" readonly disabled></div>
+    </div>
+    <div class="settings-section" id="set-privacy">
+      <div style="font-size:12px;color:var(--fg-muted);margin-bottom:10px">以下上下文可能发送到云端 API（AI 关闭时不发送）：</div>
+      <div class="set-row"><div><div class="set-label">当前目录 cwd</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="set-row"><div><div class="set-label">会话名</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="set-row"><div><div class="set-label">最近命令 + exit code</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="set-row"><div><div class="set-label">最近输出摘要</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="set-row"><div><div class="set-label">Git 分支/改动摘要</div></div><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+    <div class="modal-actions"><button class="primary" onclick="closeSettings()">完成</button></div>
+  </div>
+</div>
+
+<!-- ⌘K 命令面板 -->
+<div class="palette-overlay" id="paletteOverlay">
+  <div class="palette">
+    <input type="text" id="paletteInput" placeholder="搜索文件夹、会话、历史命令、片段…" oninput="onPaletteInput()" onkeydown="onPaletteKey(event)">
+    <div class="pal-tabs">
+      <button class="active" onclick="setPalTab(this,'all')">全部</button>
+      <button onclick="setPalTab(this,'folder')">文件夹</button>
+      <button onclick="setPalTab(this,'session')">会话</button>
+      <button onclick="setPalTab(this,'history')">历史</button>
+    </div>
+    <div class="pal-results" id="palResults"></div>
+    <div class="pal-foot">
+      <span><kbd>↑↓</kbd> 选择</span>
+      <span><kbd>↵</kbd> 跳转/填入</span>
+      <span><kbd>esc</kbd> 关闭</span>
+      <span style="margin-left:auto">历史结果仅填入输入框</span>
+    </div>
+  </div>
+</div>
+
+<!-- Onboarding -->
+<div class="onboard-overlay" id="onboardOverlay">
+  <div class="onboard">
+    <div class="ob-logo">Con<span>verse</span></div>
+    <div class="ob-sub">真实终端为底座 · 对话式命令增强</div>
+    <div class="ob-step active" id="obStep0">
+      <h2 style="text-align:center">欢迎使用 Converse</h2>
+      <p style="text-align:center">一个把终端变得更像对话的 macOS 应用。可直接输入命令，也可用自然语言让 AI 生成命令；会话按文件夹组织，退出可恢复。</p>
+      <div class="ob-features">
+        <div class="ob-feat"><span class="of-ico">💬</span><span class="of-txt"><b>对话式命令层</b><span>自然语言 → shell 命令，确认后执行</span></span></div>
+        <div class="ob-feat"><span class="of-ico">🗂️</span><span class="of-txt"><b>文件夹会话组织</b><span>每个终端会话归属项目文件夹，tmux 保持</span></span></div>
+        <div class="ob-feat"><span class="of-ico">🔍</span><span class="of-txt"><b>Git 审查（只读）</b><span>右栏实时 diff、改动文件树、当前分支</span></span></div>
+      </div>
+    </div>
+    <div class="ob-step" id="obStep1">
+      <h2>是否配置 AI？</h2>
+      <p>AI 是可选增强能力。不配置也能作为完整终端 + 会话管理 + Git 面板使用。默认走 DeepSeek 云端 API。</p>
+      <div class="ob-choice">
+        <div class="ob-card sel" onclick="obChooseAi(this,'suggest')" data-ai="suggest"><div class="oc-ico">✨</div><div class="oc-t">配置 AI 建议</div><div class="oc-d">自然语言转命令</div></div>
+        <div class="ob-card" onclick="obChooseAi(this,'off')" data-ai="off"><div class="oc-ico">🔒</div><div class="oc-t">暂不配置</div><div class="oc-d">纯终端模式</div></div>
+      </div>
+      <div class="api-key-status ok">✓ 检测到环境变量 DEEPSEEK_API_KEY，可直接使用默认配置</div>
+    </div>
+    <div class="ob-step" id="obStep2">
+      <h2>选择第一个文件夹</h2>
+      <p>Converse 按真实文件夹组织终端会话。选择一个磁盘目录开始：</p>
+      <div class="ob-choice">
+        <div class="ob-card sel" onclick="obChooseFolder(this,'converse')"><div class="oc-ico">📁</div><div class="oc-t">converse</div><div class="oc-d mono">/Volumes/.../converse</div></div>
+        <div class="ob-card" onclick="obChooseFolder(this,'other')"><div class="oc-ico">📂</div><div class="oc-t">选择其他…</div><div class="oc-d">浏览磁盘目录</div></div>
+      </div>
+    </div>
+    <div class="ob-step" id="obStep3">
+      <h2>准备就绪 ✓</h2>
+      <p>已为「converse」创建第一个 tmux 会话。你可以：</p>
+      <div class="ob-features">
+        <div class="ob-feat"><span class="of-ico">⌨️</span><span class="of-txt"><b>直接输入命令</b><span>如 ls -la、git status，回车即执行</span></span></div>
+        <div class="ob-feat"><span class="of-ico">💬</span><span class="of-txt"><b>说自然语言</b><span>如「列出大文件」，AI 生成命令待确认</span></span></div>
+      </div>
+    </div>
+    <div class="ob-actions">
+      <div class="ob-dots" id="obDots"><span class="active"></span><span></span><span></span><span></span></div>
+      <div style="display:flex;gap:8px">
+        <button class="ob-prev" id="obPrev" onclick="obPrev()">上一步</button>
+        <button class="ob-next" id="obNext" onclick="obNext()">下一步</button>
+        <button class="ob-skip" onclick="closeOnboard()">跳过</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="menu" id="ctxMenu"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+//  数据模型 (对齐 design_doc_v2 §5.4)
+// ============================================================
+const settings = {
+  aiMode: 'suggest', provider: 'deepseek',
+  apiBaseUrl: 'https://api.deepseek.com', apiKeyRef: 'env:DEEPSEEK_API_KEY',
+  apiKeyAvailable: true, model: 'deepseek-v4-flash', strongModel: 'deepseek-v4-flash',
+  shell: '/bin/zsh', tmuxNamespace: 'converse',
+  outputExcerptLimit: '8KB / 200 行', riskPolicy: 'standard', fewShotLimit: 3,
+};
+
+const folders = [
+  { id:'f_converse', name:'converse', diskPath:'/Volumes/mac2/projects/git_repo/run_self/converse', sortOrder:0 },
+  { id:'f_other', name:'other-proj', diskPath:'/Volumes/mac2/projects/git_repo/run_self/other', sortOrder:1 },
+  { id:'f_blog', name:'personal-blog', diskPath:'/Users/user/blog', sortOrder:2 },
+  { id:'f_db', name:'db-course', diskPath:'/Users/user/school/db', sortOrder:3 },
+];
+
+let sessions = {};
+let sessionOrder = [];
+function makeSession(o) {
+  const id = o.id || ('s'+Math.random().toString(36).slice(2,7));
+  sessions[id] = Object.assign({
+    id, folderId:'f_converse', name:'新会话', initialCwd:'', currentCwd:'',
+    shellPath:'/bin/zsh', tmuxSessionName:'converse_'+id,
+    status:'running', restorePolicy:'keep_alive', messages:[], history:[], sortOrder:0,
+  }, o);
+  if (!sessionOrder.includes(id)) sessionOrder.push(id);
+  return sessions[id];
+}
+
+function genLongOutput(n) {
+  const lines = [];
+  lines.push('removed 1 package, and changed 42 packages in 3s');
+  lines.push('');
+  for (let i = 1; i <= n - 6; i++) lines.push('[' + i + '] ' + (i % 3 === 0 ? 'funding' : 'package') + ' pkg-' + i + ' ' + (Math.random()*4).toFixed(2) + 's');
+  lines.push('');
+  lines.push('added 128 packages, and audited 129 packages in 4s');
+  lines.push('found 0 vulnerabilities');
+  return lines.join('\n');
+}
+
+makeSession({ id:'s1', folderId:'f_converse', name:'安装依赖', currentCwd:'/Volumes/.../converse', status:'running',
+  messages:[
+    {type:'user', text:'重装一下依赖', cmdSrc:true},
+    {type:'ai', basedOn:'', candidates:['rm -rf node_modules && npm install','rm -rf node_modules && pnpm install'], selected:0, status:'executed', originalText:'重装一下依赖', riskLevel:'high', impactScope:'删除 ./node_modules 并重新安装 128 个包'},
+    {type:'output', header:'rm -rf node_modules && npm install', lines:312, exitCode:0, collapsed:true, source:'ai_suggested', truncated:false, historical:true,
+      body: genLongOutput(312) },
+  ],
+  history:[
+    {cmd:'rm -rf node_modules && npm install', source:'ai_suggested', exit:0, risk:'high', at:'17:20', summary:'added 128 packages in 4s'},
+    {cmd:'git status', source:'user_direct', exit:0, risk:'low', at:'17:15', summary:'On branch main, 3 changes'},
+    {cmd:'ls -la', source:'user_direct', exit:0, risk:'low', at:'17:10', summary:'README.md  src  node_modules'},
+  ]
+});
+makeSession({ id:'s2', folderId:'f_converse', name:'跑构建', currentCwd:'/Volumes/.../converse', status:'running',
+  messages:[
+    {type:'user', text:'构建项目', cmdSrc:false},
+    {type:'ai', basedOn:'', candidates:['npm run build'], selected:0, status:'executed', originalText:'构建项目', riskLevel:'low', impactScope:''},
+    {type:'output', header:'npm run build', lines:8, exitCode:0, collapsed:false, source:'ai_suggested', historical:true,
+      body:'> vite build\n\n+ 42 modules transformed.\ndist/index.js  186.4 kB\nbuilt in 2.1s'},
+  ],
+  history:[ {cmd:'npm run build', source:'ai_suggested', exit:0, risk:'low', at:'16:40', summary:'built in 2.1s'} ]
+});
+makeSession({ id:'s3', folderId:'f_converse', name:'调试样式', currentCwd:'/Volumes/.../converse', status:'missing', messages:[], history:[] });
+makeSession({ id:'s4', folderId:'f_other', name:'找CSS文件', currentCwd:'/Volumes/.../other', status:'running',
+  messages:[
+    {type:'user', text:'找一下所有 CSS 文件', cmdSrc:false},
+    {type:'ai', basedOn:'', candidates:['find . -name "*.css" -type f','fd ".css$"'], selected:0, status:'executed', originalText:'找一下所有 CSS 文件', riskLevel:'low', impactScope:''},
+    {type:'output', header:'find . -name "*.css" -type f', lines:12, exitCode:1, collapsed:false, source:'ai_suggested', historical:true,
+      body:'./styles/main.css\n./styles/reset.css\n./components/button.css\nfind: ./node_modules/garbage: Permission denied'},
+    {type:'fail', cmd:'find . -name "*.css" -type f', reason:'exit 1 - Permission denied - 部分 node_modules 子目录无权限', failType:'error'},
+  ],
+  history:[ {cmd:'find . -name "*.css" -type f', source:'ai_suggested', exit:1, risk:'low', at:'18:01', summary:'Permission denied'} ]
+});
+
+let currentFolderId = 'f_converse';
+let currentSession = 's1';
+let trustLevel = 'L0';
+let focusMode = false;
+let focusProg = '';
+let focusBuf = '';
+let pendingRiskAction = null;
+let palTab = 'all';
+let palSelIdx = 0;
+
+const snippets = [
+  {trigger:'dev', cmd:'npm run dev', key:'1'},
+  {trigger:'build', cmd:'npm run build', key:'2'},
+  {trigger:'清理', cmd:'rm -rf node_modules', key:'3'},
+];
+
+// ============================================================
+//  风险检测 (Task 7)
+// ============================================================
+function assessRisk(cmd) {
+  const c = cmd.trim();
+  const rules = [];
+  let level = 'low';
+  const impact = [];
+
+  if (level==='low' && /^sudo\b/.test(c)) { level='critical'; rules.push('提权操作 (sudo)'); }
+  if (/^sudo\b.*\brm\b/.test(c)) { level='critical'; rules.push('sudo 删除'); }
+  if (/(^|\s)dd\s+if=/.test(c)) { level='critical'; rules.push('磁盘读写 (dd)'); }
+  if (/^mkfs/.test(c)) { level='critical'; rules.push('格式化文件系统 (mkfs)'); }
+  if (/\b(curl|wget)\b[^|]*\|\s*(sh|bash|zsh)\b/.test(c)) { level='critical'; rules.push('网络脚本直接执行'); }
+  if (/^rm\s+(-[a-z]*r[a-z]*f|rf)\b/.test(c) && /^rm\s+(-[a-z]*r[a-z]*f|rf)\s+\/($|\/|\s|~)/.test(c)) { level='critical'; rules.push('删除根/家目录'); }
+
+  if (level==='low') {
+    if (/^rm\s+(-[a-z]*r[a-z]*f|rf)\b/.test(c)) { level='high'; rules.push('递归强制删除'); }
+    if (/^git\s+reset\s+--hard/.test(c)) { level='high'; rules.push('Git 丢弃提交'); }
+    if (/^git\s+clean\s+-[a-z]*f/.test(c)) { level='high'; rules.push('Git 清理未跟踪文件'); }
+    if (/^git\s+push\b.*(-f|--force)/.test(c)) { level='high'; rules.push('Git 强制推送'); }
+    if (/\bchmod\s+-R\b/.test(c)) { level='high'; rules.push('递归权限修改'); }
+  }
+  if (level==='low') {
+    if (/^(npm|pnpm|yarn)\s+(install|i|add)\b/.test(c) || /^brew\s+install\b/.test(c) || /^pip3?\s+install\b/.test(c)) { level='medium'; rules.push('包安装/改动依赖'); }
+  }
+  const rmMatch = c.match(/rm\s+(-\S+\s+)?(\S+)/);
+  if (rmMatch && rmMatch[2]) impact.push('目标: ' + rmMatch[2]);
+  if (/node_modules/.test(c)) impact.push('将影响 ./node_modules');
+  if (/^git\s+/.test(c) && level!=='low') impact.push('Git 仓库状态变更');
+  return { level, rules, impact };
+}
+function riskLabel(l) { return ({low:'低',medium:'中',high:'高',critical:'极高'})[l]; }
+function riskDesc(l) { return ({low:'正常执行', medium:'AI 命令需普通确认；直接命令提示影响', high:'强确认，展示影响范围', critical:'倒计时确认，默认不聚焦执行按钮'})[l]; }
+
+// ============================================================
+//  输入判定 (F4 / Task 6)
+// ============================================================
+const knownCommands = ['ls','cd','pwd','cat','echo','find','grep','head','tail','wc','du','df','rm','cp','mv','mkdir','rmdir','touch','chmod','chown','sudo','git','npm','pnpm','yarn','node','python','python3','pip','pip3','curl','wget','ssh','vim','vi','nano','htop','top','clear','date','whoami','which','export','source','man','less','more','tar','zip','unzip','brew','lsof','kill','ps','open','dd'];
+const builtins = ['cd','echo','export','source','alias','set','exit','eval','exec','true','false','test'];
+const tuiPrograms = ['vim','vi','nano','top','htop','less','more','man','python','python3','node','irb','tmux','ranger'];
+
+function judgeInput(text, force) {
+  if (!text.trim()) return {type:'empty', label:''};
+  if (force === 'cmd') return {type:'cmd', label:'将按命令执行（强制）'};
+  if (force === 'nl') return {type:'nl', label:'将送 AI 翻译（强制）'};
+  const trimmed = text.trim();
+  const firstToken = trimmed.split(/\s+/)[0];
+  const isFirstTokenCmd = knownCommands.includes(firstToken) || builtins.includes(firstToken) || /^[.\/~\/]/.test(firstToken);
+  const hasMeta = /[|><&;$]/.test(trimmed) || /(&&|\|\|)/.test(trimmed);
+  const hasNL = /[\u4e00-\u9fa5]/.test(trimmed) || /^(怎么|为什么|帮我|列出|查找|看看|找一下|启动|构建|清理|重装|提交|新建|查看|分析|删除|安装|运行)/.test(trimmed);
+  if (isFirstTokenCmd || hasMeta) return {type:'cmd', label:'将按命令执行'};
+  if (hasNL) return {type:'nl', label:'将送 AI 翻译'};
+  if (/^[a-zA-Z][\w-]*$/.test(firstToken)) return {type:'uncertain', label:'不确定 - 默认按命令执行'};
+  return {type:'nl', label:'将送 AI 翻译'};
+}
+
+// ============================================================
+//  Few-shot 关键词检索 (Task 8)
+// ============================================================
+const fewShotExamples = [
+  {nl:'列出文件', cmd:'ls -la', risk:'low'},
+  {nl:'列出大文件', cmd:'du -sh * | sort -hr | head', risk:'low'},
+  {nl:'列出当前目录的大文件', cmd:'du -ah . | sort -rh | head -10', risk:'low'},
+  {nl:'找最近改的文件', cmd:'find . -mtime -7 -type f', risk:'low'},
+  {nl:'清理日志', cmd:'find /var/log -name "*.log" -mtime +7 -delete', risk:'high'},
+  {nl:'重装依赖', cmd:'rm -rf node_modules && npm install', risk:'high'},
+  {nl:'启动开发服务器', cmd:'npm run dev', risk:'low'},
+  {nl:'构建项目', cmd:'npm run build', risk:'low'},
+  {nl:'看端口占用', cmd:'lsof -i :8080', risk:'low'},
+  {nl:'清屏', cmd:'clear', risk:'low'},
+  {nl:'看看改了啥', cmd:'git diff', risk:'low'},
+  {nl:'看看磁盘占用', cmd:'df -h', risk:'low'},
+  {nl:'提交并写更新文档', cmd:'git add . && git commit -m "更新文档"', risk:'low'},
+  {nl:'强制推送', cmd:'git push --force origin main', risk:'high'},
+  {nl:'看看构建产物大小', cmd:'du -sh dist/* | sort -hr', risk:'low'},
+  {nl:'找所有css', cmd:'find . -name "*.css" -type f -not -path "*/node_modules/*"', risk:'low'},
+];
+function fewShotMatch(text) {
+  let scored = fewShotExamples.map(ex => {
+    let score = 0;
+    ex.nl.split('').forEach(ch => { if (ch.trim() && text.includes(ch)) score += 1; });
+    ex.nl.split(/\s+/).forEach(w => { if (w.length>1 && text.includes(w)) score += 3; });
+    return {ex, score};
+  });
+  scored.sort((a,b)=>b.score-a.score);
+  const top = scored.filter(s=>s.score>0).slice(0, settings.fewShotLimit).map(s=>s.ex);
+  if (!top.length) return [{nl:text, cmd:'echo "(需要配置模型精确翻译) '+text+'"', risk:'low'}];
+  const seen = {}; const out = [];
+  top.forEach(t => { if (!seen[t.cmd]) { seen[t.cmd]=1; out.push(t); } });
+  return out;
+}
+
+// ============================================================
+//  命令输出模拟
+// ============================================================
+const commandOutputs = {
+  'ls -la': {body:'total 48\ndrwxr-xr-x  12 user  staff  384 Jul 1 17:20 .\ndrwxr-xr-x   5 user  staff  160 Jul 1 17:20 ..\n-rw-r--r--   1 user  staff  280 Jul 1 17:20 README.md\ndrwxr-xr-x   8 user  staff  256 Jul 1 17:20 src\ndrwxr-xr-x  12 user  staff  384 Jul 1 17:20 node_modules', exit:0, lines:8},
+  'ls': {body:'README.md    src    node_modules    package.json', exit:0, lines:1},
+  'clear': {body:'', exit:0, lines:0, clear:true},
+  'pwd': {body:'/Volumes/mac2/projects/git_repo/run_self/converse', exit:0, lines:1},
+  'whoami': {body:'user', exit:0, lines:1},
+  'date': {body:new Date().toString(), exit:0, lines:1},
+  'git status': {body:'On branch main\nYour branch is up to date.\n\nChanges not staged for commit:\n  modified:   README.md\n\nUntracked files:\n  logo.png', exit:0, lines:8},
+  'git diff': {body:'diff --git a/README.md b/README.md\n-# 公司官网\n+# 公司官网 v2.0\n+重构后的说明文档', exit:0, lines:6},
+  'df -h': {body:'Filesystem      Size  Used Avail Capacity  Mounted on\n/dev/disk1s1   234Gi 120Gi  110Gi   52%    /\n/dev/disk1s4   234Gi  12Gi  110Gi    5%    /System/Volumes/Data', exit:0, lines:6},
+  'npm run dev': {body:'> vite\n\n  VITE v5.0.0  ready in 312 ms\n\n  ->  Local:   http://localhost:5173/', exit:0, lines:8, tui:true},
+  'npm run build': {body:'> vite build\n\n+ 42 modules transformed.\ndist/index.js  186.4 kB\nbuilt in 2.1s', exit:0, lines:8},
+  'gti status': {body:'zsh: command not found: gti', exit:127, lines:1, failType:'notfound', missingCmd:'gti'},
+  'echo hello': {body:'hello', exit:0, lines:1},
+};
+const failOutputs = {
+  'find . -name "*.css" -type f': {body:'./styles/main.css\n./styles/reset.css\n./components/button.css\nfind: ./node_modules/garbage: Permission denied', exit:1, lines:12, failType:'error'},
+};
+// ============================================================
+//  语法高亮
+// ============================================================
+function highlightSyntax(text) {
+  if (!text) return '';
+  const re = /(\s+)|([|><&;]+)|(&&|\|\|)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|(\$[A-Za-z_]\w*|\$\{[^}]+\})|(~\/[^\s]*|\.\/[^\s]*|\/[^\s]*)|(--?[A-Za-z][\w-]*)|([A-Za-z][\w-]*)/g;
+  let m, html = '', isFirstToken = true;
+  while ((m = re.exec(text)) !== null) {
+    if (m[1]) { html += m[1]; continue; }
+    let cls = '';
+    if (m[2] || m[3]) cls = 'tok-pipe';
+    else if (m[4]) cls = 'tok-str';
+    else if (m[5]) cls = 'tok-var';
+    else if (m[6]) cls = 'tok-path';
+    else if (m[7]) cls = 'tok-param';
+    else if (m[8]) { cls = (isFirstToken && knownCommands.includes(m[8])) ? 'tok-cmd' : ''; }
+    isFirstToken = false;
+    html += '<span class="'+cls+'">'+escapeHtml(m[0])+'</span>';
+  }
+  return html;
+}
+function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ============================================================
+//  输入处理
+// ============================================================
+const inputEl = document.getElementById('input');
+const overlayEl = document.getElementById('highlightOverlay');
+const judgeEl = document.getElementById('judgeHint');
+const acEl = document.getElementById('autocomplete');
+let acSelIdx = -1, histNavIdx = -1, hhSelIdx = 0, _suppressHist = false;
+
+function onInput() {
+  const text = inputEl.value;
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+  overlayEl.innerHTML = highlightSyntax(text) + '\n';
+  const j = judgeInput(text);
+  let tagHtml = '';
+  if (j.type === 'cmd') tagHtml = '<span class="tag cmd">命令</span> ' + j.label;
+  else if (j.type === 'nl') tagHtml = '<span class="tag nl">自然语言</span> ' + j.label;
+  else if (j.type === 'uncertain') tagHtml = '<span class="tag uncertain">不确定</span> ' + j.label;
+  else tagHtml = '<span style="color:var(--fg-muted)">输入命令直接执行，或说自然语言让 AI 翻译</span>';
+  if ((j.type === 'cmd' || j.type === 'uncertain') && text.trim()) {
+    const r = assessRisk(text.trim());
+    if (r.level === 'high' || r.level === 'critical')
+      tagHtml += ' <span class="risk-mini risk-badge '+r.level+'">风险:'+riskLabel(r.level)+'</span>';
+  }
+  if (j.type === 'nl') {
+    if (settings.aiMode === 'off') tagHtml += ' <span style="color:var(--error)">- AI 未启用</span>';
+    else if (settings.aiMode === 'error_assist') tagHtml += ' <span style="color:var(--warn)">- 报错辅助模式不主动翻译</span>';
+  }
+  tagHtml += ' <span class="override"><kbd>cmd+enter</kbd> 强制命令 - <kbd>opt+enter</kbd> 强制翻译</span>';
+  judgeEl.innerHTML = tagHtml;
+  const hlist = matchHistory(text);
+  if (hlist.length) { renderHistHint(hlist); acEl.classList.remove('show'); }
+  else { hideHistHint(); updateAutocomplete(text); }
+  renderContextChips();
+}
+
+function matchHistory(query) {
+  if (_suppressHist) return [];
+  const s = sessions[currentSession];
+  if (!s || !s.history) return [];
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const seen = new Set(); const out = [];
+  for (let i = s.history.length - 1; i >= 0; i--) {
+    const h = s.history[i];
+    const c = h.cmd.toLowerCase();
+    if ((c.startsWith(q) || c.includes(' ' + q) || c.includes(q) && q.length >= 2) && !seen.has(c)) {
+      seen.add(c); out.push(h);
+    }
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+function renderHistHint(list) {
+  const el = document.getElementById('histHint');
+  el.innerHTML = '<div class="hh-head">历史命令 · ↑↓ 选择 · 回车/Tab 填入</div>' +
+    list.map((h, i) =>
+      '<div class="hh-item'+(i===0?' sel':'')+'" onclick="acceptHistHint('+i+')">'+
+      '<span class="hh-cmd">'+escapeHtml(h.cmd)+'</span>'+
+      '<span class="hh-meta">'+sourceLabel(h.source)+' · exit '+(h.exit===null?'…':h.exit)+' · '+h.at+'</span></div>'
+    ).join('');
+  el.classList.add('show');
+  el._items = list;
+  hhSelIdx = 0;
+}
+function hideHistHint() { document.getElementById('histHint').classList.remove('show'); }
+function updateHhSel(items) { items.forEach((it,i)=>it.classList.toggle('sel', i===hhSelIdx)); }
+function acceptHistHint(idx) {
+  const el = document.getElementById('histHint');
+  const items = el._items || [];
+  const h = items[idx];
+  if (!h) return;
+  inputEl.value = h.cmd;
+  hideHistHint();
+  _suppressHist = true;
+  onInput();
+  _suppressHist = false;
+  inputEl.focus();
+  toast('已从历史填入，回车执行');
+}
+
+const cmdDb = {
+  git:   {desc:'版本控制', subs:['status','add','commit','push','pull','diff','log','checkout','branch','merge','rebase','stash','reset','fetch','clone','init','tag','remote','restore','switch'], flags:['--help','-a','--all','--no-verify','--force','-m']},
+  npm:   {desc:'Node 包管理', subs:['install','run','test','start','build','uninstall','update','init','publish','audit','ci','ls','run dev','run build'], flags:['-g','--save-dev','-D','--force']},
+  pnpm:  {desc:'PNPM 包管理', subs:['install','add','run','remove','dev','build','test'], flags:['-g','--save-dev','-D']},
+  yarn:  {desc:'Yarn 包管理', subs:['add','install','remove','run','dev','build','test'], flags:['--dev','-g']},
+  docker:{desc:'容器引擎', subs:['run','ps','build','images','stop','start','rm','exec','logs','pull','push','compose','kill'], flags:['-it','-d','--name','-p','-v','--rm','-f']},
+  ls:    {desc:'列出文件', subs:[], flags:['-l','-a','-la','-lh','-S','-t','-R','-1','-F']},
+  find:  {desc:'查找文件', subs:[], flags:['-name','-type','-mtime','-size','-exec','-not','-path','-maxdepth','-delete','-empty']},
+  grep:  {desc:'文本搜索', subs:[], flags:['-r','-n','-i','-v','-c','-l','-E','-A','-B','--include','-w']},
+  rm:    {desc:'删除文件', subs:[], flags:['-r','-f','-rf','-i','-v','--no-preserve-root']},
+  cp:    {desc:'复制', subs:[], flags:['-r','-i','-v','-f','-p']},
+  mv:    {desc:'移动/重命名', subs:[], flags:['-i','-f','-v','-n']},
+  mkdir: {desc:'建目录', subs:[], flags:['-p','-v','-m']},
+  chmod: {desc:'改权限', subs:[], flags:['-R','+x','-x','755','644','-v']},
+  chown: {desc:'改属主', subs:[], flags:['-R','-v']},
+  cat:   {desc:'查看文件', subs:[], flags:['-n','-b','-s','-A']},
+  head:  {desc:'看头部', subs:[], flags:['-n','-c','-q']},
+  tail:  {desc:'看尾部/跟踪', subs:[], flags:['-n','-f','-c','--pid']},
+  wc:    {desc:'计数', subs:[], flags:['-l','-w','-c','-m']},
+  du:    {desc:'磁盘占用', subs:[], flags:['-sh','-h','-a','-d','--max-depth','-c']},
+  df:    {desc:'文件系统', subs:[], flags:['-h','-i','-T']},
+  tar:   {desc:'归档', subs:[], flags:['-xzf','-czf','-xvf','-tvf','-C','-jxf']},
+  curl:  {desc:'HTTP 请求', subs:[], flags:['-X','-d','-H','-o','-L','-s','-I','-w','--data','-k','--url']},
+  ssh:   {desc:'远程连接', subs:[], flags:['-p','-i','-L','-R','-D','-v','-A']},
+  scp:   {desc:'远程复制', subs:[], flags:['-P','-r','-i','-C']},
+  rsync: {desc:'同步', subs:[], flags:['-avz','--delete','-e','-n','--exclude','-P']},
+  brew:  {desc:'Homebrew', subs:['install','uninstall','update','upgrade','search','list','info','cleanup','doctor','services'], flags:['--version','-s']},
+  pip:   {desc:'Python 包', subs:['install','uninstall','list','freeze','show','search'], flags:[]},
+  pip3:  {desc:'Python3 包', subs:['install','uninstall','list','freeze','show'], flags:[]},
+  node:  {desc:'Node.js', subs:[], flags:['-e','--version','--inspect','-r']},
+  python:{desc:'Python', subs:[], flags:['-m','-V','-c','-3','-u']},
+  make:  {desc:'构建', subs:['install','clean','all','test','run'], flags:['-j','-C','-f','-n']},
+  kubectl:{desc:'K8s', subs:['get','apply','delete','describe','logs','exec','port-forward','rollout','scale','config'], flags:['-n','--all-namespaces','-o','-f']},
+  cargo: {desc:'Rust', subs:['build','run','test','add','update','init','publish'], flags:['--release','-q']},
+  go:    {desc:'Go', subs:['build','run','test','mod','install','fmt','get'], flags:['-v','-o','-ldflags']},
+};
+const commandNames = Object.keys(cmdDb).concat(
+  ['cd','pwd','echo','sudo','vim','vi','nano','htop','top','clear','date','whoami','which','export','source','alias','man','less','more','zip','unzip','lsof','kill','ps','open','dd','say','caffeinate','history','env','sort','uniq','tr','sed','awk','xargs','tee','diff','patch','hostname','ifconfig','ping','netstat']
+);
+function showAc() { acEl.classList.add('show'); acSelIdx = 0; updateAcSel(acEl.querySelectorAll('.ac-item')); }
+function hideAc() { acEl.classList.remove('show'); }
+function updateAutocomplete(text) {
+  const trimmed = text.trim();
+  if (!trimmed) { hideAc(); return; }
+  const tokens = trimmed.split(/\s+/);
+  const first = tokens[0];
+  const lastToken = tokens[tokens.length - 1];
+  const typing = trimmed.endsWith(' ') ? '' : lastToken;
+
+  if (typing && /^[.\/~]/.test(typing)) {
+    const all = ['src/','dist/','node_modules/','README.md','package.json','vite.config.ts','tsconfig.json','.git/','.env','index.html','package-lock.json'];
+    const items = all.filter(i => i.startsWith(typing) || ['.','/','~','./','~/'].includes(typing));
+    if (items.length) {
+      acEl.innerHTML = items.map(i => '<div class="ac-item" onclick="insertPath(\''+i+'\')"><span class="ac-param">'+i+'</span><span class="ac-desc">路径</span></div>').join('');
+      showAc(); return;
+    }
+  }
+
+  const db = cmdDb[first];
+  if (db && (tokens.length > 1 || trimmed.endsWith(' '))) {
+    let entries;
+    if (typing.startsWith('-')) entries = db.flags.map(f => ({v:f, d:'参数'}));
+    else entries = (db.subs||[]).map(s => ({v:s, d:'子命令'})).concat(db.flags.map(f => ({v:f, d:'参数'})));
+    const filtered = entries.filter(e => !typing || e.v.startsWith(typing));
+    if (filtered.length) {
+      acEl.innerHTML = filtered.map(e => '<div class="ac-item" onclick="insertCompletion(\''+e.v.replace(/'/g,"\\'")+'\')"><span class="ac-param">'+e.v+'</span><span class="ac-desc">'+e.d+'</span></div>').join('');
+      showAc(); return;
+    }
+  }
+
+  if (tokens.length === 1 && !trimmed.endsWith(' ') && !/^[.\/~]/.test(first)) {
+    const matches = commandNames.filter(c => c.startsWith(first.toLowerCase())).slice(0, 9);
+    if (matches.length && !(matches.length === 1 && matches[0] === first)) {
+      acEl.innerHTML = matches.map(c => '<div class="ac-item" onclick="replaceFirst(\''+c+'\')"><span class="ac-param">'+c+'</span><span class="ac-desc">'+(cmdDb[c]?cmdDb[c].desc:'命令')+'</span></div>').join('');
+      showAc(); return;
+    }
+  }
+  hideAc();
+}
+function insertCompletion(p) {
+  const tokens = inputEl.value.trim().split(/\s+/);
+  tokens[tokens.length-1] = p.split(/\s+/)[0];
+  inputEl.value = tokens.join(' ') + ' ';
+  hideAc(); onInput(); inputEl.focus();
+}
+function insertPath(p) {
+  const tokens = inputEl.value.trim().split(/\s+/);
+  tokens[tokens.length-1] = p;
+  inputEl.value = tokens.join(' ');
+  hideAc(); onInput(); inputEl.focus();
+}
+function replaceFirst(cmd) {
+  inputEl.value = cmd + ' ';
+  hideAc(); onInput(); inputEl.focus();
+}
+function onKeyDown(e) {
+  const hhEl = document.getElementById('histHint');
+  if (hhEl.classList.contains('show')) {
+    const items = hhEl.querySelectorAll('.hh-item');
+    if (e.key === 'ArrowDown') { hhSelIdx = Math.min(hhSelIdx+1, items.length-1); updateHhSel(items); e.preventDefault(); return; }
+    if (e.key === 'ArrowUp') { hhSelIdx = Math.max(hhSelIdx-1, 0); updateHhSel(items); e.preventDefault(); return; }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); acceptHistHint(hhSelIdx); return; }
+    if (e.key === 'Escape') { hideHistHint(); e.preventDefault(); return; }
+  }
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const items = acEl.querySelectorAll('.ac-item');
+    if (acEl.classList.contains('show') && items.length) {
+      if (acSelIdx < 0) acSelIdx = 0;
+      items[acSelIdx].click();
+    } else {
+      toast('Tab → shell 补全');
+    }
+    return;
+  }
+  const acShown = acEl.classList.contains('show');
+  if (acShown) {
+    const items = acEl.querySelectorAll('.ac-item');
+    if (e.key === 'ArrowDown') { acSelIdx = Math.min(acSelIdx+1, items.length-1); updateAcSel(items); e.preventDefault(); return; }
+    if (e.key === 'ArrowUp') { acSelIdx = Math.max(acSelIdx-1, 0); updateAcSel(items); e.preventDefault(); return; }
+    if (e.key === 'Escape') { acEl.classList.remove('show'); return; }
+  }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    let force = null;
+    if (e.metaKey) force = 'cmd';
+    if (e.altKey) force = 'nl';
+    sendInput(force); return;
+  }
+  if (inputEl.value.indexOf('\n') < 0) {
+    if (e.key === 'ArrowUp') { histNav(1); e.preventDefault(); return; }
+    if (e.key === 'ArrowDown') { histNav(-1); e.preventDefault(); return; }
+  }
+}
+function updateAcSel(items) { items.forEach((it,i)=>it.classList.toggle('sel', i===acSelIdx)); }
+function histNav(dir) {
+  const s = sessions[currentSession];
+  if (!s || !s.history.length) return;
+  if (dir > 0) histNavIdx = Math.min(histNavIdx+1, s.history.length-1);
+  else histNavIdx = Math.max(histNavIdx-1, -1);
+  inputEl.value = histNavIdx < 0 ? '' : s.history[s.history.length-1-histNavIdx].cmd;
+  onInput();
+}
+function quickKey(k) {
+  if (k === 'Ctrl+C') { interruptCmd(); return; }
+  else if (k === 'Tab') toast('Tab 已送 shell 补全');
+  else toast('已发送 ' + k);
+}
+
+// ============================================================
+//  发送主流程 (F4/F5/F7)
+// ============================================================
+function sendInput(force) {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  const j = judgeInput(text, force);
+  const snip = snippets.find(s => s.trigger === text);
+  if (snip) { addUserMsg(text, true); runCommand(snip.cmd, 'user_direct'); inputEl.value=''; onInput(); return; }
+
+  if (j.type === 'cmd' || j.type === 'uncertain') {
+    addUserMsg(text, true);
+    attemptRun(text, 'user_direct');
+  } else if (j.type === 'nl') {
+    addUserMsg(text, false);
+    if (settings.aiMode === 'off') {
+      addSystemMsg('这不像可执行命令，AI 未启用。可改为输入 shell 命令，或前往设置启用 AI。');
+    } else if (settings.aiMode === 'error_assist') {
+      addSystemMsg('报错辅助模式：不主动翻译自然语言。请直接输入 shell 命令；命令失败时我会自动生成修复建议。');
+    } else if (!settings.apiKeyAvailable) {
+      addSystemMsg('云端 API 未配置，AI 功能不可用。请前往设置配置 DeepSeek 或 OpenAI-compatible API。');
+    } else {
+      const matches = fewShotMatch(text);
+      addAIBubble(text, matches.map(m=>m.cmd), '', matches[0].risk);
+    }
+  }
+  inputEl.value = ''; onInput(); acEl.classList.remove('show'); histNavIdx = -1;
+}
+
+function attemptRun(cmd, source) {
+  const r = assessRisk(cmd);
+  if (r.level === 'high' || r.level === 'critical') openRiskModal(cmd, source, r);
+  else if (r.level === 'medium' && settings.riskPolicy === 'strict') openRiskModal(cmd, source, r);
+  else {
+    if (r.level === 'medium') toast('提示：该命令可能改动依赖/环境（中风险 · standard 直接执行)');
+    runCommand(cmd, source);
+  }
+}
+
+function runCommand(cmd, source) {
+  const s = sessions[currentSession];
+  if (/^sudo\b/.test(cmd)) {
+    addOutputBlock(cmd, '[sudo] password for user: (等待输入...)', null, 0, false, source);
+    showSudoZone();
+    recordHistory(cmd, source, null, assessRisk(cmd).level, '密码态');
+    return;
+  }
+  const firstTok = cmd.split(/\s+/)[0];
+  if (tuiPrograms.includes(firstTok)) {
+    enterFocus(firstTok, cmd);
+    recordHistory(cmd, source, null, assessRisk(cmd).level, '焦点模式');
+    return;
+  }
+  let out = commandOutputs[cmd] || failOutputs[cmd] || commandOutputs[firstTok];
+  if (!out) out = {body:'(模拟) 已执行: '+cmd, exit:0, lines:1};
+  if (out.clear) {
+    document.getElementById('convStream').innerHTML = '';
+    s.messages = [];
+    toast('已清屏');
+    recordHistory(cmd, source, 0, 'low', 'clear');
+    return;
+  }
+  const risk = assessRisk(cmd).level;
+  const msg = {type:'output', header:cmd, body:'▌ 执行中...', exitCode:null, lines:0, collapsed:false, source, historical:false};
+  s.messages.push(msg); renderMessage(msg); scrollToBottom();
+  runningCmd = { msg, out, cmd, source, risk };
+  runningCmd.timer = setTimeout(finishCmd, 700);
+}
+let runningCmd = null;
+function finishCmd() {
+  if (!runningCmd) return;
+  const {msg, out, cmd, source, risk} = runningCmd;
+  msg.body = out.body; msg.exitCode = out.exit; msg.lines = out.lines; msg.collapsed = out.lines > 20;
+  renderSession();
+  recordHistory(cmd, source, out.exit, risk, out.body.slice(0,120));
+  const failed = out.exit !== 0 && out.failType;
+  runningCmd = null;
+  if (failed) {
+    if (settings.aiMode === 'error_assist' && settings.apiKeyAvailable) setTimeout(()=>addErrorAssistFix(cmd, out), 350);
+    else setTimeout(()=>addFailMenu(cmd, out), 350);
+  }
+}
+function interruptCmd() {
+  if (!runningCmd) { toast('当前无前台命令在运行'); return; }
+  clearTimeout(runningCmd.timer);
+  const {msg, cmd, source, risk} = runningCmd;
+  msg.body = '^C\n（已中断）'; msg.exitCode = 130; msg.lines = 0;
+  runningCmd = null;
+  renderSession();
+  recordHistory(cmd, source, 130, risk, '已中断 (Ctrl+C)');
+  toast('已中断当前命令 (Ctrl+C)');
+}
+
+function recordHistory(cmd, source, exit, risk, summary) {
+  const s = sessions[currentSession];
+  const at = new Date().toTimeString().slice(0,5);
+  s.history.push({cmd, source, exit, risk, at, summary: desensitize(summary)});
+  renderHistList();
+}
+function desensitize(text) {
+  if (!text) return '';
+  return text
+    .replace(/(sk-[A-Za-z0-9]{10,})/g, 'sk-***REDACTED***')
+    .replace(/(Bearer\s+[A-Za-z0-9.\-_]+)/gi, 'Bearer ***REDACTED***')
+    .replace(/(password\s*=?\s*\S+)/gi, 'password=***REDACTED***');
+}
+
+// ============================================================
+//  风险确认 Modal (F7/Task 9)
+// ============================================================
+function openRiskModal(cmd, source, risk) {
+  pendingRiskAction = {cmd, source};
+  const body = document.getElementById('riskBody');
+  const confirmBtn = document.getElementById('riskConfirm');
+  let html = '<div class="risk-confirm-box '+risk.level+'">'+
+    '<div class="rc-level">'+(risk.level==='critical'?'⛔ ':'⚠ ')+riskLabel(risk.level)+'风险命令</div>'+
+    '<div style="font-size:12px;color:var(--fg-dim);margin-bottom:6px">将执行:</div>'+
+    '<div class="modal-cmd">'+escapeHtml(cmd)+'</div>'+
+    '<div class="rc-rules">命中规则:<ul>'+risk.rules.map(r=>'<li>'+escapeHtml(r)+'</li>').join('')+'</ul></div>'+
+    (risk.impact.length ? '<div class="rc-impact">影响范围: '+escapeHtml(risk.impact.join('；'))+'</div>' : '')+
+    '</div>';
+  if (risk.level === 'critical') html += '<div class="countdown-box" id="countdownBox">倒计时 <span class="num" id="countdownNum">4</span> 秒后可确认 - 默认不聚焦执行按钮</div>';
+  body.innerHTML = html;
+  const titles = {critical:'极高风险确认', high:'高风险确认', medium:'中风险确认'};
+  document.getElementById('riskTitle').textContent = titles[risk.level] || '风险确认';
+  confirmBtn.textContent = '确认执行';
+  confirmBtn.disabled = false;
+  document.getElementById('riskModal').classList.add('show');
+  if (risk.level === 'critical') {
+    confirmBtn.disabled = true;
+    setTimeout(()=>{ const cancelBtn = document.querySelector('#riskModal .modal-actions button:not(.primary)'); if (cancelBtn) cancelBtn.focus(); }, 30);
+    startRiskCountdown(confirmBtn);
+  }
+}
+function startRiskCountdown(btn) {
+  let n = 4;
+  clearInterval(window._riskTimer);
+  window._riskTimer = setInterval(()=>{
+    n--;
+    const el = document.getElementById('countdownNum');
+    if (el) el.textContent = n;
+    if (n <= 0) { clearInterval(window._riskTimer); btn.disabled = false; }
+  }, 1000);
+}
+function confirmRisk() {
+  if (!pendingRiskAction) return;
+  const {cmd, source} = pendingRiskAction;
+  closeRiskModal();
+  runCommand(cmd, source);
+}
+function closeRiskModal() {
+  document.getElementById('riskModal').classList.remove('show');
+  clearInterval(window._riskTimer);
+  pendingRiskAction = null;
+}
+
+// ============================================================
+//  sudo 密码态 (Task 11)
+// ============================================================
+function showSudoZone() {
+  document.getElementById('sudoZone').classList.add('show');
+  document.getElementById('inputZone').classList.add('disabled');
+  setTimeout(()=>document.getElementById('sudoInput').focus(), 50);
+}
+function submitSudo() {
+  document.getElementById('sudoInput').value = '';
+  document.getElementById('sudoZone').classList.remove('show');
+  document.getElementById('inputZone').classList.remove('disabled');
+  inputEl.focus();
+  toast('密码已发送到 pty - 未写入历史/日志/SQLite/AI');
+  addSystemMsg('sudo 密码已提交（不显示、不存储、不发给 AI）');
+}
+
+// ============================================================
+//  终端焦点模式 (F8/Task 11)
+// ============================================================
+function enterFocus(prog, cmd) {
+  focusMode = true;
+  focusProg = prog;
+  document.getElementById('focusScreen').classList.add('show');
+  document.getElementById('inputZone').classList.add('disabled');
+  document.getElementById('focusTag').classList.add('show');
+  document.getElementById('fsProg').textContent = prog;
+  document.getElementById('convStream').style.display = 'none';
+  focusBuf = focusInitial(prog, cmd);
+  const pager = ['less','more','man','top','htop'].includes(prog);
+  const repl = ['python','python3','node','irb'].includes(prog);
+  const shell = prog === 'shell';
+  let hint = '按字母键编辑，Esc / 退出终端 退出';
+  if (shell) hint = '输入命令回车 · Ctrl+C 中断当前命令 · exit 退出';
+  else if (pager) hint = '查看中，按 q 退出';
+  else if (repl) hint = '输入并回车 · Ctrl+C 中断 · exit() 退出';
+  document.getElementById('fsHint').textContent = hint;
+  renderFocus();
+  setTimeout(()=>document.getElementById('focusScreen').focus(), 50);
+  toast('进入终端模式 · ' + prog + ' · 键盘直通 pty');
+}
+function renderFocus() {
+  document.getElementById('fsContent').innerHTML = escapeHtml(focusBuf) + '<span class="fs-cursor"></span>';
+  const fs = document.getElementById('focusScreen');
+  fs.scrollTop = fs.scrollHeight;
+}
+function exitFocus() {
+  focusMode = false;
+  document.getElementById('focusScreen').classList.remove('show');
+  document.getElementById('inputZone').classList.remove('disabled');
+  document.getElementById('focusTag').classList.remove('show');
+  document.getElementById('convStream').style.display = '';
+  addSystemMsg('已退出终端模式，恢复对话增强模式');
+  inputEl.focus();
+}
+function enterFocusDemo() { enterFocus('shell', ''); }
+function stripPrompt(line) {
+  return line.replace(/^(user@macbook converse % |>>> |> |irb\(main\):\d+:0> )/, '').trim();
+}
+function focusInitial(prog, cmd) {
+  if (prog === 'shell')
+    return 'Last login: ' + new Date().toDateString() + ' on ttys001\nuser@macbook converse % ';
+  if (prog === 'vim' || prog === 'vi')
+    return '-- README.md --\n\n# 公司官网 v2.0\n\n重构后的说明文档，包含部署指南和开发规范。\n\n## 快速开始\n\n- npm install\n- npm run dev\n\n~ \n~ \n';
+  if (prog === 'top' || prog === 'htop')
+    return 'Processes:  312 total, 2 running\nCPU usage:  12.4% user, 4.1% sys, 83.5% idle\n\n  PID   COMMAND      %CPU  TIME\n  412   node         8.2   03:12.4\n  881   WindowServer 4.1   12:44.1\n  1201  vite         2.3   00:31.0\n';
+  if (prog === 'less' || prog === 'more' || prog === 'man')
+    return 'README.md\n\n# 公司官网 v2.0\n\n重构后的说明文档，包含部署指南和开发规范。\n\n(查看模式 - 按 q 退出)\n';
+  if (prog === 'python' || prog === 'python3')
+    return "Python 3.11.4 (main)\n>>> ";
+  if (prog === 'node')
+    return "Welcome to Node.js v20.3.0\n> ";
+  if (prog === 'irb')
+    return "irb(main):001:0> ";
+  return '(终端模式: ' + prog + ')\n';
+}
+function onFocusKey(e) {
+  if (!focusMode) return;
+  const k = e.key;
+  const vimLike = ['vim','vi','nano'].includes(focusProg);
+  const pager = ['less','more','man','top','htop'].includes(focusProg);
+  const repl = ['python','python3','node','irb'].includes(focusProg);
+  const shell = focusProg === 'shell';
+  const prompt = shell ? 'user@macbook converse % ' : (focusProg==='node'?'> ':(focusProg==='irb'?'irb(main):001:0> ':'>>> '));
+  if (e.ctrlKey && k === 'c') {
+    e.preventDefault(); e.stopPropagation();
+    if (vimLike) { return; }
+    if (shell || repl) { focusBuf += '^C\n' + prompt; renderFocus(); }
+    return;
+  }
+  if (k === 'Escape') {
+    if (vimLike) return;
+    e.preventDefault(); e.stopPropagation(); exitFocus(); return;
+  }
+  if (pager && k === 'q') { e.preventDefault(); e.stopPropagation(); exitFocus(); return; }
+  if (k === 'Backspace') { e.preventDefault(); e.stopPropagation(); focusBuf = focusBuf.slice(0, -1); renderFocus(); return; }
+  if (k === 'Enter') {
+    e.preventDefault(); e.stopPropagation();
+    if (shell || repl) {
+      const line = focusBuf.split('\n').pop();
+      const cmdText = stripPrompt(line);
+      if (/^(exit|logout|exit\(\)|quit\(\)|quit)$/.test(cmdText)) { exitFocus(); return; }
+      if (shell && (cmdText === 'clear' || cmdText === 'cls')) { focusBuf = prompt; renderFocus(); return; }
+      let out = '';
+      if (shell) {
+        const o = commandOutputs[cmdText] || commandOutputs[cmdText.split(/\s+/)[0]];
+        out = o ? o.body : '';
+      } else if (focusProg === 'node' && cmdText) {
+        out = 'undefined';
+      }
+      focusBuf += (out ? '\n' + out : '') + '\n' + prompt;
+    } else {
+      focusBuf += '\n';
+    }
+    renderFocus(); return;
+  }
+  if (k.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault(); e.stopPropagation();
+    focusBuf += k; renderFocus(); return;
+  }
+}
+// ============================================================
+//  渲染消息
+// ============================================================
+function addUserMsg(text, isCmd) {
+  const s = sessions[currentSession];
+  const msg = {type:'user', text, cmdSrc: !!isCmd};
+  s.messages.push(msg); renderMessage(msg); scrollToBottom();
+}
+function addSystemMsg(text) {
+  const s = sessions[currentSession];
+  const msg = {type:'system', text};
+  s.messages.push(msg); renderMessage(msg); scrollToBottom();
+}
+function addAIBubble(originalText, candidates, basedOn, riskLevel) {
+  const s = sessions[currentSession];
+  const msg = {type:'ai', basedOn, candidates, selected:0, status:'proposed', originalText,
+    riskLevel: riskLevel || 'low', impactScope: assessRisk(candidates[0]).impact.join('；')};
+  s.messages.push(msg); renderMessage(msg, s.messages.length-1); scrollToBottom();
+}
+function addOutputBlock(cmd, body, exitCode, lines, collapsed, source, truncated, historical) {
+  const s = sessions[currentSession];
+  s.messages.push({type:'output', header:cmd, body, exitCode, lines, collapsed, source, truncated, historical: !!historical});
+  renderMessage(s.messages[s.messages.length-1]); scrollToBottom();
+}
+const HIST_HEAD = 200, HIST_TAIL = 200;
+function formatOutputBody(msg) {
+  const body = msg.body || '';
+  if (msg.historical) {
+    const all = body.split('\n');
+    if (all.length > HIST_HEAD + HIST_TAIL) {
+      const head = all.slice(0, HIST_HEAD).join('\n');
+      const tail = all.slice(-HIST_TAIL).join('\n');
+      const omitted = all.length - HIST_HEAD - HIST_TAIL;
+      return { html: escapeHtml(head) + '\n\n⋯⋯ 中间省略 ' + omitted + ' 行 ⋯⋯\n\n' + escapeHtml(tail),
+               notice: '历史输出 · 共 ' + msg.lines + ' 行 · 显示头 ' + HIST_HEAD + ' + 尾 ' + HIST_TAIL + ' 行' };
+    }
+    return { html: escapeHtml(body), notice: msg.truncated ? '历史输出 · SQLite 仅存摘要' : '' };
+  }
+  return { html: escapeHtml(body), notice: '' };
+}
+function addFailMenu(cmd, out) {
+  const s = sessions[currentSession];
+  const msg = {type:'fail', cmd, reason: failReason(out), failType: out.failType, missingCmd: out.missingCmd};
+  s.messages.push(msg); renderMessage(msg); scrollToBottom();
+}
+function failReason(out) {
+  if (out.failType === 'notfound') return 'command not found: ' + out.missingCmd;
+  if (out.failType === 'error') return 'exit ' + out.exit + ' - 运行时错误（见输出）';
+  return 'exit ' + out.exit;
+}
+
+function renderSession() {
+  const stream = document.getElementById('convStream');
+  stream.innerHTML = '';
+  const s = sessions[currentSession];
+  if (!s) { stream.innerHTML = '<div class="msg system">此文件夹暂无会话，点击左上「New session」创建。</div>'; return; }
+  s.messages.forEach((msg, idx) => renderMessage(msg, idx));
+  scrollToBottom();
+}
+
+function renderMessage(msg, idx) {
+  const stream = document.getElementById('convStream');
+  const div = document.createElement('div');
+  div.className = 'msg ' + msg.type;
+  if (msg.type === 'user') {
+    div.classList.toggle('cmd-src', !!msg.cmdSrc);
+    div.textContent = msg.text;
+  } else if (msg.type === 'system') {
+    div.textContent = msg.text;
+  } else if (msg.type === 'ai') {
+    const cands = msg.candidates || [];
+    const cur = cands[msg.selected] || cands[0] || '';
+    const rl = msg.riskLevel || 'low';
+    div.innerHTML =
+      '<div class="ai-label">AI 建议 '+
+        (msg.basedOn ? '<span class="based-on">基于上一条: '+escapeHtml(msg.basedOn)+'</span> - 追问' : '')+
+        ' <span style="color:var(--fg-muted)">- few-shot Top-'+settings.fewShotLimit+'</span></div>'+
+      '<div class="cmd">'+escapeHtml(cur)+'</div>'+
+      '<div class="risk-row"><span class="risk-badge '+rl+'">风险: '+riskLabel(rl)+'</span>'+
+        '<span class="impact">'+(msg.impactScope ? '影响: '+escapeHtml(msg.impactScope) : riskDesc(rl))+'</span></div>'+
+      (cands.length > 1 ? '<div class="candidates">候选 <button onclick="navCand('+idx+',-1)">&lt;</button> '+(msg.selected+1)+'/'+cands.length+' <button onclick="navCand('+idx+',1)">&gt;</button></div>' : '')+
+      '<div class="actions">'+
+        (msg.status === 'executed' ? '<span class="ai-status">✓ 已执行</span>' : '')+
+        (msg.status !== 'executed' ? '<button class="btn-exec" onclick="execAI('+idx+')">执行</button>' : '<button onclick="execAI('+idx+')">重跑</button>')+
+        '<button onclick="editAI('+idx+')">编辑</button>'+
+        '<button onclick="explainAI('+idx+')">解释</button>'+
+        '<button onclick="saveSnippetAI('+idx+')">存为片段</button>'+
+        '<button onclick="rejectAI('+idx+')">取消</button></div>'+
+      '<div class="feedback"><button onclick="feedback('+idx+',true)" title="翻得好">👍</button><button onclick="feedback('+idx+',false)" title="翻得不对">👎</button></div>';
+  } else if (msg.type === 'output') {
+    div.className = 'msg output ' + (msg.collapsed ? 'collapsed' : '');
+    const f = formatOutputBody(msg);
+    const histBadge = msg.historical ? '<span class="src-tag" style="color:var(--fg-muted)">历史</span>' : '<span class="src-tag" style="color:var(--success)">实时</span>';
+    div.innerHTML =
+      '<div class="out-header" onclick="this.parentElement.classList.toggle(\'collapsed\')"><span class="arrow">▼</span>'+
+        '<span style="font-family:monospace">'+escapeHtml(msg.header)+'</span>'+
+        histBadge+
+        (msg.source ? '<span class="src-tag">'+sourceLabel(msg.source)+'</span>' : '')+
+        '<span style="color:var(--fg-muted)">- '+msg.lines+' 行</span>'+
+        '<span class="exit-code '+(msg.exitCode === 0 ? 'ok' : 'err')+'">'+(msg.exitCode===null?'运行中...':'退出码 '+msg.exitCode)+'</span></div>'+
+      '<div class="out-body">'+f.html+'</div>'+
+      (f.notice ? '<div class="out-truncated">'+f.notice+'</div>' : '');
+  } else if (msg.type === 'fail') {
+    const aiBtn = msg.failType === 'notfound'
+      ? '<button class="btn-ai" onclick="aiFixNotFound(\''+escapeHtml(msg.missingCmd||'')+'\')">AI 修复建议</button>'
+      : '<button class="btn-ai" onclick="aiFixError('+idx+')">AI 修复建议</button>';
+    div.innerHTML =
+      '<div class="f-label">! 命令执行失败</div>'+
+      '<div class="f-reason">'+escapeHtml(msg.reason)+'</div>'+
+      '<div class="f-actions"><button onclick="retryCmd('+idx+')">重试原命令</button>'+
+        '<button onclick="editRetry('+idx+')">编辑后重试</button>'+aiBtn+'</div>';
+  } else if (msg.type === 'suggest') {
+    const rl = assessRisk(msg.cmd).level;
+    const label = msg.errAssist ? '🔧 报错辅助 · AI 已分析失败原因' : '💡 智能建议';
+    const labelStyle = msg.errAssist ? ' style="color:var(--accent)"' : '';
+    const safeCmd = escapeHtml(msg.cmd).replace(/'/g,"\\'");
+    div.innerHTML =
+      '<div class="s-label"'+labelStyle+'>'+label+'</div>'+
+      '<div>'+escapeHtml(msg.text)+'</div>'+
+      '<div class="s-cmd">'+escapeHtml(msg.cmd)+'</div>'+
+      '<div style="margin:6px 0"><span class="risk-badge '+rl+'">风险: '+riskLabel(rl)+'</span></div>'+
+      '<div class="s-actions"><button class="btn-exec" onclick="execSuggest(this,\''+safeCmd+'\')">执行</button>'+
+        '<button onclick="editSuggest(\''+safeCmd+'\')">编辑</button>'+
+        '<button onclick="this.closest(\'.msg\').remove()">忽略</button></div>';
+  } else if (msg.type === 'explain') {
+    div.innerHTML =
+      '<div class="e-title">命令解释: '+escapeHtml(msg.cmd)+'</div>'+
+      '<div style="margin-bottom:8px;color:var(--fg-dim)">'+escapeHtml(msg.summary)+'</div>'+
+      msg.sections.map(s => '<div class="e-section"><span class="param">'+escapeHtml(s.param)+'</span><span class="desc">'+escapeHtml(s.desc)+'</span></div>').join('')+
+      '<div class="actions" style="margin-top:10px"><button onclick="this.closest(\'.msg\').remove()">关闭</button></div>';
+  }
+  stream.appendChild(div);
+}
+function sourceLabel(s) { return ({user_direct:'直接输入', ai_suggested:'AI 建议', ai_edited:'AI 编辑', retry:'重试'})[s] || s; }
+
+// AI 卡片操作
+function navCand(idx, dir) {
+  const msg = sessions[currentSession].messages[idx];
+  if (!msg || !msg.candidates) return;
+  msg.selected = (msg.selected + dir + msg.candidates.length) % msg.candidates.length;
+  msg.riskLevel = assessRisk(msg.candidates[msg.selected]).level;
+  msg.impactScope = assessRisk(msg.candidates[msg.selected]).impact.join('；');
+  renderSession();
+}
+function execAI(idx) {
+  const msg = sessions[currentSession].messages[idx];
+  if (!msg) return;
+  const cmd = msg.candidates[msg.selected];
+  msg.status = 'executed';
+  renderSession();
+  attemptRun(cmd, 'ai_suggested');
+}
+function editAI(idx) {
+  const msg = sessions[currentSession].messages[idx];
+  inputEl.value = msg.candidates[msg.selected];
+  msg.status = 'edited';
+  renderSession(); onInput(); inputEl.focus();
+  toast('已填入输入框 - 编辑后回车执行，将重新判定风险');
+}
+function rejectAI(idx) {
+  const msg = sessions[currentSession].messages[idx];
+  msg.status = 'rejected'; renderSession();
+  toast('已取消该 AI 建议');
+}
+function feedback(idx, liked) {
+  const msgEl = document.getElementById('convStream').children[idx];
+  if (!msgEl) return;
+  const fb = msgEl.querySelectorAll('.feedback button');
+  fb[0].classList.toggle('liked', liked);
+  fb[1].classList.toggle('disliked', !liked);
+  toast(liked ? '已记入 few-shot 示例库（正样本）' : '已记录，可补话重翻');
+}
+function retryCmd(idx) {
+  inputEl.value = sessions[currentSession].messages[idx].cmd;
+  onInput(); inputEl.focus();
+  toast('原命令已填入输入框，再次回车才执行');
+}
+function editRetry(idx) {
+  inputEl.value = sessions[currentSession].messages[idx].cmd;
+  onInput(); inputEl.focus();
+  toast('已填入并进入编辑状态');
+}
+function aiFixNotFound(missingCmd) {
+  if (settings.aiMode === 'off') { toast('AI 未启用，无法生成修复建议'); return; }
+  addSuggest('未找到命令「'+missingCmd+'」，可能未安装。试试 Homebrew：', 'brew install '+missingCmd);
+}
+function aiFixError(idx) {
+  if (settings.aiMode === 'off') { toast('AI 未启用，无法生成修复建议'); return; }
+  const msg = sessions[currentSession].messages[idx];
+  addSuggest('检测到权限错误，可能是 node_modules 子目录无权限。建议忽略 node_modules：', msg.cmd + ' -not -path "*/node_modules/*"');
+}
+function addSuggest(text, cmd) {
+  const s = sessions[currentSession];
+  const msg = {type:'suggest', text, cmd};
+  s.messages.push(msg); renderMessage(msg); scrollToBottom();
+}
+function generateFix(cmd, out) {
+  if (out.failType === 'notfound') {
+    const miss = out.missingCmd || '';
+    const typos = { gti:'git', gits:'git', pyhton:'python', pyhton3:'python3', gat:'cat', ehco:'echo' };
+    if (typos[miss]) return { reason:'「'+miss+'」不存在，疑似拼写错误', fix: cmd.replace(new RegExp('\\b'+miss+'\\b'), typos[miss]) };
+    return { reason:'「'+miss+'」未安装', fix:'brew install '+miss };
+  }
+  if (/permission denied/i.test(out.body||'')) return { reason:'权限不足（node_modules 子目录）', fix: cmd + ' -not -path "*/node_modules/*"' };
+  return { reason:'退出码 '+out.exit, fix: cmd };
+}
+function addErrorAssistFix(cmd, out) {
+  const g = generateFix(cmd, out);
+  const s = sessions[currentSession];
+  const msg = {type:'suggest', text:'命令失败（'+g.reason+'），AI 已生成修复建议，确认后执行：', cmd:g.fix, errAssist:true};
+  s.messages.push(msg); renderMessage(msg); scrollToBottom();
+}
+function editSuggest(cmd) {
+  inputEl.value = cmd; onInput(); inputEl.focus();
+  toast('已填入输入框，可编辑后回车执行（将重新判定风险）');
+}
+function execSuggest(btn, cmd) {
+  btn.closest('.msg').remove();
+  attemptRun(cmd, 'ai_suggested');
+}
+function explainAI(idx) {
+  const msg = sessions[currentSession].messages[idx];
+  const cmd = msg.candidates[msg.selected];
+  const parts = cmd.split(/\s+/);
+  const sections = [{param:parts[0], desc:'可执行命令'}];
+  for (let i=1;i<parts.length;i++){
+    const t = parts[i];
+    if (t.startsWith('-')) sections.push({param:t, desc:'命令参数/选项'});
+    else if (t === '&&') sections.push({param:t, desc:'前一条成功后执行下一条'});
+    else if (/[|>&]/.test(t)) sections.push({param:t, desc:'管道/重定向'});
+    else sections.push({param:t, desc:'命令参数'});
+  }
+  const m = {type:'explain', cmd, summary:'在当前环境执行: '+cmd, sections};
+  sessions[currentSession].messages.push(m); renderMessage(m); scrollToBottom();
+}
+
+// ============================================================
+//  历史 & 会话列表
+// ============================================================
+function currentFolderSessions() { return sessionOrder.filter(id => sessions[id] && sessions[id].folderId === currentFolderId); }
+
+function renderConvList() {
+  updateStatusPill();
+  const list = document.getElementById('convList');
+  list.innerHTML = '';
+  const ids = currentFolderSessions();
+  if (!ids.length) { list.innerHTML = '<div class="hist-empty">此文件夹暂无会话</div>'; return; }
+  ids.forEach(key => {
+    const s = sessions[key];
+    const div = document.createElement('div');
+    div.className = 'conv-item' + (key === currentSession ? ' active' : '');
+    div.dataset.session = key;
+    div.onclick = () => switchSession(key);
+    div.innerHTML = '<span class="ci-title">'+escapeHtml(s.name)+'</span>'+
+      '<span class="ci-status '+s.status+'">'+statusLabel(s.status)+'</span>'+
+      '<span class="ci-more" onclick="event.stopPropagation();sessionMenu(event,\''+key+'\')">⋯</span>';
+    list.appendChild(div);
+  });
+}
+function statusLabel(st) { return ({running:'运行', detached:'分离', closed:'已关闭', missing:'丢失'})[st] || st; }
+function updateStatusPill() {
+  const all = sessionOrder.map(id => sessions[id]).filter(s => s && s.status !== 'closed');
+  const run = all.filter(s => s.status === 'running').length;
+  const miss = all.filter(s => s.status === 'missing').length;
+  let txt = run + ' 运行';
+  if (miss) txt += ' · ' + miss + ' 丢失';
+  const el = document.getElementById('statusText');
+  if (el) el.textContent = txt;
+}
+
+function renderHistList() {
+  const list = document.getElementById('histList');
+  if (!list) return;
+  const s = sessions[currentSession];
+  list.innerHTML = '';
+  if (!s || !s.history.length) { list.innerHTML = '<div class="hist-empty">暂无历史命令</div>'; return; }
+  [...s.history].reverse().forEach(h => {
+    const div = document.createElement('div');
+    div.className = 'hist-item';
+    div.onclick = () => fillInputFromHistory(h.cmd);
+    div.ondblclick = () => fillInputFromHistory(h.cmd);
+    div.innerHTML = '<div class="hi-cmd">'+escapeHtml(h.cmd)+'</div>'+
+      '<div class="hi-meta"><span class="hi-src '+h.source+'">'+sourceLabel(h.source)+'</span>'+
+      '<span>'+h.at+'</span>'+
+      '<span class="hi-exit '+(h.exit===0?'ok':'err')+'">'+(h.exit===null?'...':('exit '+h.exit))+'</span>'+
+      '<span class="hi-risk risk-badge '+h.risk+'">'+riskLabel(h.risk)+'</span></div>'+
+      '<div class="hi-summary">'+escapeHtml(h.summary || '')+'</div>';
+    list.appendChild(div);
+  });
+}
+function fillInputFromHistory(cmd) {
+  inputEl.value = cmd; onInput(); inputEl.focus();
+  toast('已填入输入框 - 再次回车才执行（历史不直接执行）');
+}
+function switchSideTab(btn, tab) {
+  document.querySelectorAll('.sidebar-tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('side-sessions').classList.toggle('hidden', tab!=='sessions');
+  document.getElementById('side-history').classList.toggle('hidden', tab!=='history');
+  if (tab === 'history') renderHistList();
+}
+
+// ============================================================
+//  会话生命周期 (Task 4/13)
+// ============================================================
+function switchSession(key) {
+  if (!sessions[key]) return;
+  const s = sessions[key];
+  if (s.status === 'closed') { toast('该会话已关闭，请新建会话'); return; }
+  if (s.status === 'missing') {
+    if (confirm('该会话的 tmux 已丢失（可能被手动 kill）。是否重新创建？')) {
+      s.status = 'running';
+      s.tmuxSessionName = 'converse_' + key + '_' + Date.now().toString(36);
+      toast('已重新创建 tmux 会话: ' + s.tmuxSessionName);
+    } else return;
+  }
+  currentSession = key;
+  renderConvList();
+  document.getElementById('sessionTitle').textContent = s.name;
+  document.getElementById('sessionMeta').textContent = 'tmux: '+s.tmuxSessionName+' - '+s.currentCwd;
+  const ss = document.getElementById('sessionStatus');
+  ss.textContent = statusLabel(s.status); ss.className = 'sess-status ' + s.status;
+  renderSession(); renderHistList(); renderContextChips();
+}
+function sessionMenu(e, key) {
+  e.stopPropagation();
+  const s = sessions[key];
+  const items = [
+    {label:'重命名', act:()=>renameSession(key)},
+  ];
+  if (s.status === 'running' || s.status === 'detached') {
+    items.push({sep:true});
+    items.push({label:'关闭会话（kill tmux）', danger:true, act:()=>closeSession(key)});
+  }
+  if (s.status === 'missing') {
+    items.push({sep:true});
+    items.push({label:'重新创建', act:()=>{ s.status='running'; renderConvList(); toast('已重新创建'); }});
+    items.push({label:'移除记录', danger:true, act:()=>removeSessionRecord(key)});
+  }
+  showMenu(e.clientX, e.clientY, items);
+}
+function renameSession(key) {
+  const name = prompt('会话名称', sessions[key].name);
+  if (name) { sessions[key].name = name; renderConvList(); if (key===currentSession) document.getElementById('sessionTitle').textContent = name; }
+}
+function closeSession(key) {
+  if (!confirm('确认关闭会话「'+sessions[key].name+'」？\n将 kill 对应 tmux 会话，不再恢复。')) return;
+  sessions[key].status = 'closed';
+  sessionOrder = sessionOrder.filter(id => id !== key);
+  if (currentSession === key) {
+    const next = currentFolderSessions()[0];
+    if (next) switchSession(next);
+    else { currentSession = null; renderEmptyState(); }
+  }
+  renderConvList();
+  renderHistList();
+  toast('已关闭会话并 kill tmux');
+}
+function renderEmptyState() {
+  document.getElementById('sessionTitle').textContent = '（无会话）';
+  document.getElementById('sessionStatus').textContent = '';
+  document.getElementById('sessionStatus').className = 'sess-status';
+  document.getElementById('sessionMeta').textContent = '请新建会话';
+  renderSession();
+}
+function closeCurrentSession() { closeSession(currentSession); }
+function removeSessionRecord(key) {
+  if (!confirm('移除该丢失会话的记录？')) return;
+  delete sessions[key];
+  sessionOrder = sessionOrder.filter(id=>id!==key);
+  renderConvList(); toast('已移除记录');
+}
+function newSession() {
+  const fld = folders.find(f=>f.id===currentFolderId);
+  const name = prompt('新会话名称', '新会话');
+  if (!name) return;
+  const id = 's' + Date.now().toString(36);
+  makeSession({ id, folderId: currentFolderId, name, currentCwd: fld ? fld.diskPath : '', status:'running' });
+  renderConvList(); switchSession(id);
+  toast('已创建 tmux 会话: converse_' + id);
+}
+
+// ============================================================
+//  文件夹管理 (Task 5.1)
+// ============================================================
+function addFolder() {
+  const name = prompt('文件夹名称（选择磁盘目录的模拟）', 'my-project');
+  if (!name) return;
+  const path = prompt('磁盘路径', '/Users/user/'+name);
+  const id = 'f_' + Date.now().toString(36);
+  folders.push({ id, name, diskPath:path, sortOrder: folders.length });
+  const bar = document.getElementById('activitybar');
+  const btn = document.createElement('button');
+  btn.className = 'ws-btn'; btn.dataset.ws = name.charAt(0).toUpperCase(); btn.dataset.folder = id; btn.title = name;
+  btn.textContent = name.charAt(0).toUpperCase();
+  btn.onclick = ()=>switchFolder(id, name);
+  bar.insertBefore(btn, bar.querySelector('.ws-add'));
+  toast('已添加文件夹「'+name+'」（磁盘目录不受影响）');
+}
+function switchFolder(id, name) {
+  const fld = folders.find(f=>f.id===id);
+  if (!fld) return;
+  currentFolderId = id;
+  document.querySelectorAll('.ws-btn').forEach(b=>b.classList.remove('active'));
+  const btn = [...document.querySelectorAll('.ws-btn')].find(b=>b.dataset.folder===id);
+  if (btn) btn.classList.add('active');
+  document.getElementById('folderNameTxt').textContent = name;
+  document.getElementById('folderPath').textContent = fld.diskPath;
+  renderConvList();
+  const ids = currentFolderSessions();
+  if (ids.length) switchSession(ids[0]);
+}
+function folderMenu(e) {
+  e.stopPropagation();
+  const fld = folders.find(f=>f.id===currentFolderId);
+  showMenu(e.clientX, e.clientY, [
+    {label:'New Session', act:()=>newSession()},
+    {label:'Edit', act:()=>renameFolder()},
+    {sep:true},
+    {label:'Reveal in Finder', act:()=>toast('Reveal in Finder（模拟）')},
+    {label:'Close', danger:true, act:()=>closeFolder()},
+  ]);
+}
+function renameFolder() {
+  const fld = folders.find(f=>f.id===currentFolderId);
+  const name = prompt('工作区名称', fld.name);
+  if (name) { fld.name = name; document.getElementById('folderNameTxt').textContent = name; toast('已重命名工作区'); }
+}
+function closeFolder() {
+  const fld = folders.find(f=>f.id===currentFolderId);
+  if (!confirm('关闭工作区「'+fld.name+'」？\n（仅从侧栏移除，磁盘目录和会话不受影响）')) return;
+  const btn = [...document.querySelectorAll('.ws-btn')].find(b=>b.dataset.folder===currentFolderId);
+  if (btn) btn.remove();
+  const idx = folders.findIndex(f=>f.id===currentFolderId);
+  folders.splice(idx,1);
+  toast('已关闭工作区「'+fld.name+'」');
+  if (folders.length) switchFolder(folders[0].id, folders[0].name);
+}
+// ============================================================
+//  Git 只读面板 (F9/Task 12)
+// ============================================================
+const gitData = {
+  branch:'main',
+  unstaged:[
+    {status:'M', name:'README.md', diff:[{m:'diff --git a/README.md b/README.md'},{m:'--- a/README.md'},{m:'+++ b/README.md'},{d:'-# 公司官网'},{d:'-旧版说明文档'},{a:'+# 公司官网 v2.0'},{a:'+重构后的说明文档，包含部署指南'},{a:'+和开发规范。'}]},
+    {status:'M', name:'src/App.tsx', diff:[{m:'diff --git a/src/App.tsx b/src/App.tsx'},{m:'--- a/src/App.tsx'},{m:'+++ b/src/App.tsx'},{d:'-export default function App(){ return <div>old</div> }'},{a:'+export default function App(){ return <Layout><Router/></Layout> }'}]},
+  ],
+  staged:[
+    {status:'A', name:'logo.png', diff:[{m:'diff --git a/logo.png b/logo.png'},{m:'new file mode 100644'},{m:'Binary files differ'}]},
+  ],
+};
+let gitStage = 'unstaged';
+let gitSelected = 0;
+function renderGit() {
+  const files = document.getElementById('gitFiles');
+  const list = gitData[gitStage];
+  files.innerHTML = list.map((f,i) =>
+    '<div class="git-file '+(i===gitSelected?'sel':'')+'" onclick="selectGit('+i+')">'+
+    '<span class="status '+f.status+'">'+f.status+'</span>'+
+    '<span class="name">'+escapeHtml(f.name)+'</span></div>').join('');
+  const diffEl = document.getElementById('gitDiff');
+  const f = list[gitSelected];
+  if (!f) { diffEl.innerHTML = '<span style="color:var(--fg-muted)">（无改动）</span>'; return; }
+  diffEl.innerHTML = f.diff.map(l => {
+    if (l.m) return '<div class="line-meta">'+escapeHtml(l.m)+'</div>';
+    if (l.a) return '<div class="line-add">+'+escapeHtml(l.a)+'</div>';
+    if (l.d) return '<div class="line-del">-'+escapeHtml(l.d)+'</div>';
+    return '';
+  }).join('');
+}
+function selectGit(i) { gitSelected = i; renderGit(); }
+function switchStage(btn, stage) {
+  document.querySelectorAll('.git-stage-tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  gitStage = stage; gitSelected = 0; renderGit();
+}
+function refreshGit() {
+  toast('已刷新 Git 状态（git status --porcelain）');
+  const btn = document.querySelector('.git-refresh');
+  btn.style.transition = 'transform .6s'; btn.style.transform = 'rotate(360deg)';
+  setTimeout(()=>{ btn.style.transition=''; btn.style.transform=''; }, 600);
+}
+function switchPanel(btn, panel) {
+  document.querySelectorAll('.rightbar .panel-tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-git').style.display = panel === 'git' ? '' : 'none';
+  document.getElementById('panel-context').style.display = panel === 'context' ? '' : 'none';
+  if (panel === 'context') renderContextInfo();
+}
+
+// ============================================================
+//  上下文面板 & chips (F11)
+// ============================================================
+function renderContextChips() {
+  const s = sessions[currentSession];
+  if (!s) return;
+  const el = document.getElementById('contextChips');
+  el.innerHTML =
+    '<span class="chip">📁 '+escapeHtml(sessions[currentSession].name)+'</span>'+
+    '<span class="chip mono">'+escapeHtml((s.currentCwd||'').slice(-24))+'</span>'+
+    '<span class="chip">tmux:'+escapeHtml(s.tmuxSessionName)+'</span>'+
+    (settings.aiMode==='off' ? '<span class="chip" style="color:var(--error)">AI 关闭</span>' : '<span class="chip">'+settings.provider+':'+settings.model+'</span>');
+}
+function renderContextInfo() {
+  const s = sessions[currentSession];
+  const lastCmd = s.history.length ? s.history[s.history.length-1] : null;
+  document.getElementById('ctxInfo').innerHTML =
+    '<div class="ctx-row"><span class="ck">当前目录</span><span class="cv">'+escapeHtml(s.currentCwd)+'</span></div>'+
+    '<div class="ctx-row"><span class="ck">会话名</span><span class="cv">'+escapeHtml(s.name)+'</span></div>'+
+    '<div class="ctx-row"><span class="ck">文件夹</span><span class="cv">'+escapeHtml(folders.find(f=>f.id===s.folderId)?.name||'')+'</span></div>'+
+    '<div class="ctx-row"><span class="ck">最近命令</span><span class="cv">'+(lastCmd?escapeHtml(lastCmd.cmd):'(无)')+'</span></div>'+
+    '<div class="ctx-row"><span class="ck">exit code</span><span class="cv">'+(lastCmd?(lastCmd.exit===null?'运行中':lastCmd.exit):'-')+'</span></div>'+
+    '<div class="ctx-row"><span class="ck">输出摘要</span><span class="cv">'+(lastCmd?escapeHtml(lastCmd.summary||''):'(无)')+'</span></div>'+
+    '<div class="ctx-row"><span class="ck">Git 分支</span><span class="cv">'+gitData.branch+' · '+(gitData.unstaged.length+gitData.staged.length)+' 改动</span></div>';
+}
+
+// ============================================================
+//  AI 模式切换 (F6)
+// ============================================================
+document.getElementById('aiModeSwitch').querySelectorAll('button').forEach(btn => {
+  btn.onclick = () => {
+    document.getElementById('aiModeSwitch').querySelectorAll('button').forEach(b=>{b.classList.remove('active','off','err');});
+    btn.classList.add('active');
+    const m = btn.dataset.mode;
+    if (m === 'off') btn.classList.add('off');
+    if (m === 'error_assist') btn.classList.add('err');
+    settings.aiMode = m;
+    const label = m==='off' ? 'AI 已关闭 - 纯终端模式' : m==='suggest' ? 'AI 建议模式 - 自然语言转命令' : 'AI 报错辅助 - 仅失败时介入';
+    toast(label);
+    onInput(); renderContextChips();
+    syncSettingsAiMode();
+  };
+});
+function syncSettingsAiMode() {
+  document.getElementById('setAiMode').querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.mode===settings.aiMode));
+}
+
+// ============================================================
+//  设置 Modal (Task 5.3)
+// ============================================================
+document.getElementById('settingsBtn').onclick = () => {
+  syncSettingsAiMode();
+  document.getElementById('settingsModal').classList.add('show');
+};
+function closeSettings() { document.getElementById('settingsModal').classList.remove('show'); }
+function switchSettings(btn, sec) {
+  document.querySelectorAll('.settings-nav button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.settings-section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('set-'+sec).classList.add('active');
+}
+document.getElementById('setAiMode')?.querySelectorAll('button').forEach(btn => {
+  btn.onclick = () => {
+    document.getElementById('setAiMode').querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    settings.aiMode = btn.dataset.mode;
+    const sw = document.getElementById('aiModeSwitch');
+    sw.querySelectorAll('button').forEach(b=>{b.classList.remove('active','off','err'); if(b.dataset.mode===settings.aiMode){b.classList.add('active'); if(settings.aiMode==='off')b.classList.add('off'); if(settings.aiMode==='error_assist')b.classList.add('err');}});
+    onInput(); renderContextChips();
+  };
+});
+document.getElementById('setRiskPolicy')?.querySelectorAll('button').forEach(btn => {
+  btn.onclick = () => {
+    document.getElementById('setRiskPolicy').querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    settings.riskPolicy = btn.dataset.policy;
+    toast('确认策略: ' + settings.riskPolicy + (settings.riskPolicy==='strict' ? ' · 中风险命令也需确认' : ' · 中风险仅提示'));
+  };
+});
+document.getElementById('settingsModal').addEventListener('click', e => { if (e.target.id === 'settingsModal') closeSettings(); });
+
+// ============================================================
+//  ⌘K 命令面板 (F12/Task 5.5)
+// ============================================================
+function openPalette(initialTab) {
+  document.getElementById('paletteOverlay').classList.add('show');
+  document.getElementById('paletteInput').value = '';
+  palTab = initialTab || 'all'; palSelIdx = 0;
+  document.querySelectorAll('.pal-tabs button').forEach(b=>b.classList.toggle('active', b.dataset.ptab===palTab));
+  setTimeout(()=>document.getElementById('paletteInput').focus(), 50);
+  onPaletteInput();
+}
+function closePalette() { document.getElementById('paletteOverlay').classList.remove('show'); }
+function setPalTab(btn, tab) {
+  document.querySelectorAll('.pal-tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); palTab = tab; palSelIdx = 0; onPaletteInput();
+}
+function buildPalItems(q) {
+  q = q.toLowerCase();
+  const items = [];
+  folders.forEach(f => {
+    if (!q || f.name.toLowerCase().includes(q)) items.push({group:'文件夹', type:'folder', icon:'📁', title:f.name, sub:f.diskPath, id:f.id, name:f.name});
+  });
+  sessionOrder.forEach(id => {
+    const s = sessions[id];
+    if (!s) return;
+    if (!q || s.name.toLowerCase().includes(q)) items.push({group:'会话', type:'session', icon:'⬛', title:s.name, sub:s.tmuxSessionName+' - '+statusLabel(s.status), id});
+  });
+  const s = sessions[currentSession];
+  if (s) [...s.history].reverse().forEach(h => {
+    if (!q || h.cmd.toLowerCase().includes(q)) items.push({group:'历史', type:'history', icon:'$', title:h.cmd, sub:sourceLabel(h.source)+' - exit '+h.exit+' - '+h.at, cmd:h.cmd});
+  });
+  snippets.forEach(sn => {
+    if (!q || sn.trigger.includes(q) || sn.cmd.toLowerCase().includes(q)) items.push({group:'片段', type:'snippet', icon:'⚡', title:sn.trigger+' -> '+sn.cmd, sub:'片段 (⌘'+sn.key+')', cmd:sn.cmd});
+  });
+  return items;
+}
+function onPaletteInput() {
+  const q = document.getElementById('paletteInput').value;
+  let items = buildPalItems(q);
+  if (palTab !== 'all') items = items.filter(it => it.type === palTab);
+  const res = document.getElementById('palResults');
+  if (!items.length) { res.innerHTML = '<div class="pal-empty">无匹配结果</div>'; return; }
+  palSelIdx = Math.min(palSelIdx, items.length-1);
+  let html = '', lastGroup = '';
+  items.forEach((it, i) => {
+    if (it.group !== lastGroup) { html += '<div class="pal-group">'+it.group+'</div>'; lastGroup = it.group; }
+    const sel = i === palSelIdx ? 'sel' : '';
+    html += '<div class="pal-item '+sel+'" onclick="palSelect('+i+')"><span class="pi-icon">'+it.icon+'</span>'+
+      '<div class="pi-main"><div class="pi-title">'+escapeHtml(it.title)+'</div><div class="pi-sub">'+escapeHtml(it.sub)+'</div></div></div>';
+  });
+  res.innerHTML = html;
+  res._items = items;
+}
+function palSelect(i) {
+  const items = document.getElementById('palResults')._items || [];
+  const it = items[i]; if (!it) return;
+  if (it.type === 'folder') switchFolder(it.id, it.name);
+  else if (it.type === 'session') {
+    const ses = sessions[it.id];
+    if (ses && ses.folderId !== currentFolderId) {
+      const fld = folders.find(f=>f.id===ses.folderId);
+      switchFolder(ses.folderId, fld ? fld.name : '');
+    }
+    switchSession(it.id);
+  }
+  else if (it.type === 'history' || it.type === 'snippet') { fillInputFromHistory(it.cmd); }
+  closePalette();
+}
+function onPaletteKey(e) {
+  const items = document.getElementById('palResults')._items || [];
+  if (e.key === 'ArrowDown') { palSelIdx = Math.min(palSelIdx+1, items.length-1); onPaletteInput(); e.preventDefault(); }
+  else if (e.key === 'ArrowUp') { palSelIdx = Math.max(palSelIdx-1, 0); onPaletteInput(); e.preventDefault(); }
+  else if (e.key === 'Enter') { palSelect(palSelIdx); e.preventDefault(); }
+  else if (e.key === 'Escape') { closePalette(); e.preventDefault(); }
+}
+document.getElementById('paletteOverlay').addEventListener('click', e => { if (e.target.id === 'paletteOverlay') closePalette(); });
+
+// ============================================================
+//  Onboarding (Task 5.4)
+// ============================================================
+let onboardStep = 0, onboardAi = 'suggest';
+function showOnboard() { onboardStep = 0; updateOnboard(); document.getElementById('onboardOverlay').classList.add('show'); }
+function closeOnboard() {
+  document.getElementById('onboardOverlay').classList.remove('show');
+  try { localStorage.setItem('converse_onboarded', '1'); } catch(e) {}
+  inputEl.focus();
+}
+function updateOnboard() {
+  document.querySelectorAll('.ob-step').forEach((s,i)=>s.classList.toggle('active', i===onboardStep));
+  document.querySelectorAll('#obDots span').forEach((s,i)=>s.classList.toggle('active', i===onboardStep));
+  document.getElementById('obPrev').style.visibility = onboardStep===0 ? 'hidden' : 'visible';
+  document.getElementById('obNext').textContent = onboardStep===3 ? '进入主界面' : '下一步';
+}
+function obNext() {
+  if (onboardStep === 3) { closeOnboard(); inputEl.focus(); return; }
+  onboardStep++; updateOnboard();
+}
+function obPrev() { if (onboardStep>0){ onboardStep--; updateOnboard(); } }
+function obChooseAi(card, mode) {
+  card.parentElement.querySelectorAll('.ob-card').forEach(c=>c.classList.remove('sel'));
+  card.classList.add('sel'); onboardAi = mode;
+}
+function obChooseFolder(card, fld) {
+  card.parentElement.querySelectorAll('.ob-card').forEach(c=>c.classList.remove('sel'));
+  card.classList.add('sel');
+}
+
+// ============================================================
+//  信任级别 / 主题 / 菜单
+// ============================================================
+document.querySelectorAll('.trust-switch button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.trust-switch button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active'); trustLevel = btn.dataset.level;
+    toast('信任级别: '+trustLevel+' - '+
+      (trustLevel==='L0'?'每条 AI 命令需确认':trustLevel==='L1'?'白名单内直接执行':'会话内直接执行(危险除外)'));
+  };
+});
+document.getElementById('themeBtn').onclick = () => {
+  const root = document.documentElement;
+  const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  root.setAttribute('data-theme', next);
+  document.getElementById('themeBtn').textContent = next === 'dark' ? '🌙' : '☀';
+};
+function showMenu(x, y, items) {
+  const menu = document.getElementById('ctxMenu');
+  menu.innerHTML = items.map((it,i) =>
+    it.sep ? '<div class="sep"></div>'
+    : '<button '+(it.danger?'class="danger"':'')+' onclick="execMenu('+i+')">'+escapeHtml(it.label)+'</button>'
+  ).join('');
+  menu._items = items;
+  menu.style.left = Math.min(x, window.innerWidth-200)+'px';
+  menu.style.top = Math.min(y, window.innerHeight-200)+'px';
+  menu.classList.add('show');
+}
+function execMenu(i) {
+  const items = document.getElementById('ctxMenu')._items || [];
+  document.getElementById('ctxMenu').classList.remove('show');
+  if (items[i] && items[i].act) items[i].act();
+}
+
+// ============================================================
+//  工作区切换
+// ============================================================
+document.querySelectorAll('.ws-btn').forEach(btn => {
+  btn.onclick = () => {
+    const fid = btn.dataset.folder;
+    if (fid) switchFolder(fid, btn.title);
+    else { document.querySelectorAll('.ws-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); toast('切换到: '+btn.title); }
+  };
+});
+
+// ============================================================
+//  快捷键 & 工具
+// ============================================================
+document.addEventListener('click', e => {
+  if (!e.target.closest('.input-box')) { acEl.classList.remove('show'); hideHistHint(); }
+  if (!e.target.closest('#ctxMenu') && !e.target.closest('.ws-more') && !e.target.closest('.ci-more'))
+    document.getElementById('ctxMenu').classList.remove('show');
+});
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); openPalette(); }
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'r' || e.key === 'R')) { e.preventDefault(); openPalette('history'); }
+  if (e.ctrlKey && (e.key === 'c' || e.key === 'C') && !focusMode && runningCmd) { e.preventDefault(); interruptCmd(); }
+  if (e.key === 'Escape') {
+    closeRiskModal(); closePalette();
+    document.getElementById('ctxMenu').classList.remove('show');
+  }
+});
+document.getElementById('riskModal').addEventListener('click', e => { if (e.target.id === 'riskModal') closeRiskModal(); });
+
+function scrollToBottom() {
+  const stream = document.getElementById('convStream');
+  setTimeout(()=>stream.scrollTop = stream.scrollHeight, 50);
+}
+function toast(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text; t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+// ============================================================
+//  初始化
+// ============================================================
+function renderSnippets() {
+  document.getElementById('snippetList').innerHTML = snippets.map((sn, i) =>
+    '<div class="snip" onclick="fillInputFromHistory(\''+sn.cmd.replace(/'/g,"\\'")+'\')">'+
+    '<kbd>⌘'+sn.key+'</kbd><span class="snip-cmd">'+escapeHtml(sn.trigger)+' → '+escapeHtml(sn.cmd)+'</span>'+
+    '<span class="snip-del" onclick="event.stopPropagation();delSnippet('+i+')" title="删除">×</span></div>'
+  ).join('');
+}
+function addSnippet(prefillCmd) {
+  const cmd = prefillCmd != null ? prefillCmd : prompt('命令内容', '');
+  if (!cmd) return;
+  const trigger = prompt('触发词（在输入框输入此词即执行该命令）', cmd.trim().split(/\s+/)[0] || 'snip');
+  if (!trigger) return;
+  const key = String(snippets.length + 1);
+  snippets.push({ trigger, cmd, key });
+  renderSnippets();
+  toast('已新建片段: ' + trigger + ' → ' + cmd);
+}
+function delSnippet(i) {
+  const sn = snippets[i];
+  if (!sn) return;
+  snippets.splice(i, 1);
+  renderSnippets();
+  toast('已删除片段: ' + sn.trigger);
+}
+function saveSnippetAI(idx) {
+  const msg = sessions[currentSession].messages[idx];
+  if (!msg || !msg.candidates) return;
+  addSnippet(msg.candidates[msg.selected]);
+}
+function init() {
+  renderConvList();
+  renderSession();
+  renderHistList();
+  renderGit();
+  renderSnippets();
+  document.getElementById('focusScreen').addEventListener('keydown', onFocusKey);
+  onInput();
+  let onboarded = false;
+  try { onboarded = !!localStorage.getItem('converse_onboarded'); } catch(e) {}
+  if (!onboarded) showOnboard();
+}
+init();
+</script>
+</body>
+</html>
