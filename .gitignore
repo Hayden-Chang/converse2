@@ -1,0 +1,14 @@
+# Build artifacts
+.build/
+.swiftpm/
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+.build/
+
+# macOS
+.DS_Store
+
+# Secrets — never commit
+.env
+*.key
