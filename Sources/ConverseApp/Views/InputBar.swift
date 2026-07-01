@@ -5,6 +5,7 @@ struct InputBar: View {
     let controller: TerminalController
     var onNaturalLanguage: (String) -> Void
     var onShellConfirm: (String, RiskAssessment) -> Void
+    var disabled: Bool = false
 
     @EnvironmentObject var state: AppState
     @State private var text: String = ""
@@ -14,7 +15,12 @@ struct InputBar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s2) {
-            if let hint {
+            if disabled {
+                Text("交互式程序运行中，键盘已直通终端")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textTertiary)
+                    .padding(.horizontal, Theme.Spacing.s9)
+            } else if let hint {
                 Text(hint)
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.warning)
@@ -28,17 +34,18 @@ struct InputBar: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .onSubmit(submit)
+                    .disabled(disabled)
                 HStack(spacing: Theme.Spacing.s3) {
                     Button { navigateHistory(-1) } label: {
                         Image(systemName: "chevron.up").font(.system(size: 10))
                     }
                     .buttonStyle(.plain)
-                    .disabled(history.isEmpty)
+                    .disabled(history.isEmpty || disabled)
                     Button { navigateHistory(1) } label: {
                         Image(systemName: "chevron.down").font(.system(size: 10))
                     }
                     .buttonStyle(.plain)
-                    .disabled(history.isEmpty)
+                    .disabled(history.isEmpty || disabled)
                     Divider().frame(height: 14)
                     Button { controller.interrupt() } label: {
                         Image(systemName: "stop.fill")

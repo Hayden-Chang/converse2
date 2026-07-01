@@ -154,6 +154,37 @@ struct MainColumn: View {
                     .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md).stroke(Theme.border))
                 }
             }
+            .overlay(alignment: .topTrailing) {
+                if terminalController.terminalMode || terminalController.awaitingPassword {
+                    VStack(spacing: Theme.Spacing.s2) {
+                        if terminalController.terminalMode {
+                            HStack(spacing: Theme.Spacing.s3) {
+                                Image(systemName: "terminal")
+                                    .font(.system(size: 11))
+                                Text("终端模式")
+                                    .font(.system(size: 11, weight: .medium))
+                                Button("退出") { terminalController.exitTerminalMode() }
+                                    .buttonStyle(.plain)
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundStyle(Color.black)
+                            .padding(.horizontal, Theme.Spacing.s4)
+                            .padding(.vertical, Theme.Spacing.s2)
+                            .background(Theme.warning, in: RoundedRectangle(cornerRadius: Theme.Radius.sm))
+                        }
+                        if terminalController.awaitingPassword {
+                            Text("正在输入密码（不记录、不发 AI）")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.textSecondary)
+                                .padding(.horizontal, Theme.Spacing.s4)
+                                .padding(.vertical, Theme.Spacing.s2)
+                                .background(Theme.bgSubtle, in: RoundedRectangle(cornerRadius: Theme.Radius.sm))
+                        }
+                    }
+                    .padding(.horizontal, Theme.Spacing.s4)
+                    .padding(.top, Theme.Spacing.s3)
+                }
+            }
             Divider().background(Theme.border)
             if let pendingSuggestion {
                 AiSuggestionCard(
@@ -187,7 +218,8 @@ struct MainColumn: View {
                 onNaturalLanguage: handleAI,
                 onShellConfirm: { cmd, assessment in
                     pendingConfirm = PendingShellConfirm(command: cmd, assessment: assessment)
-                }
+                },
+                disabled: terminalController.terminalMode
             )
         }
         .background(Theme.bgSurface)
