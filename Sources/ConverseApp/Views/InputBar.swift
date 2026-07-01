@@ -8,10 +8,10 @@ struct InputBar: View {
     var disabled: Bool = false
 
     @EnvironmentObject var state: AppState
-    @State private var text: String = ""
     @State private var history: [String] = []
     @State private var historyIndex: Int? = nil
     @State private var hint: String? = nil
+    @FocusState private var focused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.s2) {
@@ -30,11 +30,13 @@ struct InputBar: View {
                 Image(systemName: "chevron.right")
                     .foregroundStyle(Theme.textTertiary)
                     .font(.system(size: 11))
-                TextField("说点什么或打个命令…", text: $text)
+                TextField("说点什么或打个命令…", text: $state.inputDraft)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
+                    .focused($focused)
                     .onSubmit(submit)
                     .disabled(disabled)
+                    .onChange(of: state.inputFocusToken) { _ in focused = true }
                 HStack(spacing: Theme.Spacing.s3) {
                     Button { navigateHistory(-1) } label: {
                         Image(systemName: "chevron.up").font(.system(size: 10))
@@ -67,16 +69,16 @@ struct InputBar: View {
         var idx = cur + dir
         idx = min(max(idx, 0), history.count)
         if idx < history.count {
-            text = history[idx]
+            state.inputDraft = history[idx]
             historyIndex = idx
         } else {
-            text = ""
+            state.inputDraft = ""
             historyIndex = nil
         }
     }
 
     private func submit() {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = state.inputDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         pushHistory(trimmed)
         let classifier = InputClassifier(pathDirs: currentPathDirs())
@@ -99,7 +101,7 @@ struct InputBar: View {
         case .notCommandNoAi:
             hint = "AI 未启用，请输入 shell 命令"
         }
-        text = ""
+        state.inputDraft = ""
         historyIndex = nil
     }
 
