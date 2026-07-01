@@ -24,6 +24,12 @@ final class AppState: ObservableObject {
         reload()
     }
 
+    internal init(dbPath: String) {
+        self.db = (try? AppDatabase(path: dbPath)) ?? (try! AppDatabase(path: ":memory:"))
+        self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "converse.onboarded")
+        reload()
+    }
+
     func completeOnboarding() {
         hasCompletedOnboarding = true
         UserDefaults.standard.set(true, forKey: "converse.onboarded")
@@ -139,7 +145,7 @@ final class AppState: ObservableObject {
     }
 
     func status(for session: SessionRecord) -> SessionStatus {
-        tmux.hasSession(id: tmuxShortID(for: session)) ? .running : .missing
+        session.statusEnum
     }
 
     func tmuxShortID(for session: SessionRecord) -> String {
