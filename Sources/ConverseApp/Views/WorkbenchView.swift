@@ -139,12 +139,6 @@ struct MainColumn: View {
 
 struct ReviewPanel: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.s6) {
-            Text("Git 审查").font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Theme.textPrimary)
-            Text("只读面板占位").font(.system(size: 12)).foregroundStyle(Theme.textTertiary)
-            Spacer()
-        }
-        .padding(Theme.Spacing.s9).background(Theme.bgApp)
+        GitPanel(repoPath: "/Volumes/mac2/projects/git_repo/run_self/converse2")
     }
 }
