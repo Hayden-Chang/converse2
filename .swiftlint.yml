@@ -1,0 +1,34 @@
+# SwiftLint 配置（见任务 2：lint/format/typecheck）
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - first_where
+  - last_where
+  - operator_usage_whitespace
+  - sorted_first_last
+  - toggle_bool
+
+disabled_rules:
+  - trailing_whitespace
+  - todo
+  - file_length
+
+included:
+  - Sources
+  - Tests
+
+line_length:
+  warning: 120
+  error: 160
+
+type_body_length:
+  warning: 400
+  error: 600
+
+function_body_length:
+  warning: 60
+  error: 100
+
+identifier_name:
+  min_length: 1
+  allowed_symbols: ["_"]
