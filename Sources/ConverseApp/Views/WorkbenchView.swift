@@ -109,36 +109,160 @@ struct SessionSidebar: View {
     }
 }
 
+private struct PendingShellConfirm: Identifiable {
+    let id = UUID()
+    let command: String
+    let assessment: RiskAssessment
+}
+
 struct MainColumn: View {
     @EnvironmentObject var state: AppState
+    @StateObject private var terminalController = TerminalController()
+    @State private var pendingSuggestion: AiCommandSuggestion?
+    @State private var aiLoading = false
+    @State private var aiError: String?
+    @State private var lastQuery: String?
+    @State private var pendingConfirm: PendingShellConfirm?
 
     var body: some View {
         VStack(spacing: 0) {
-            if let session = state.selectedSession() {
-                let sid = state.tmuxShortID(for: session)
-                SwiftTerminalView(
-                    directory: session.currentCwd,
-                    tmuxSessionID: sid,
-                    onProcessTerminated: { _ in }
-                )
-                .id(sid)
-            } else {
-                VStack(spacing: Theme.Spacing.s6) {
-                    Image(systemName: "terminal").font(.system(size: 32)).foregroundStyle(Theme.textTertiary)
-                    Text("选择或新建一个会话").foregroundStyle(Theme.textTertiary)
+            ZStack {
+                if let session = state.selectedSession() {
+                    let sid = state.tmuxShortID(for: session)
+                    SwiftTerminalView(
+                        directory: session.currentCwd,
+                        tmuxSessionID: sid,
+                        onProcessTerminated: { _ in },
+                        controller: terminalController
+                    )
+                    .id(sid)
+                } else {
+                    VStack(spacing: Theme.Spacing.s6) {
+                        Image(systemName: "terminal").font(.system(size: 32)).foregroundStyle(Theme.textTertiary)
+                        Text("选择或新建一个会话").foregroundStyle(Theme.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Theme.bgSurface)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Theme.bgSurface)
+                if aiLoading {
+                    VStack(spacing: Theme.Spacing.s3) {
+                        ProgressView().controlSize(.small)
+                        Text("AI 思考中…").font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                    }
+                    .padding(Theme.Spacing.s6)
+                    .background(Theme.bgSurface, in: RoundedRectangle(cornerRadius: Theme.Radius.md))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.md).stroke(Theme.border))
+                }
             }
             Divider().background(Theme.border)
-            HStack(spacing: Theme.Spacing.s6) {
-                Text("说点什么或打个命令…").foregroundStyle(Theme.textTertiary)
-                Spacer()
+            if let pendingSuggestion {
+                AiSuggestionCard(
+                    suggestion: pendingSuggestion,
+                    controller: terminalController,
+                    onDismiss: { self.pendingSuggestion = nil },
+                    onEdit: { reassess($0) }
+                )
             }
-            .padding(.horizontal, Theme.Spacing.s9).frame(height: 48)
-            .background(Theme.bgSurface)
+            if let aiError {
+                HStack(spacing: Theme.Spacing.s3) {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(Theme.danger)
+                        .font(.system(size: 12))
+                    Text(aiError)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.danger)
+                    Spacer()
+                    if lastQuery != nil {
+                        Button("重试") { if let q = lastQuery { handleAI(q) } }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 12))
+                    }
+                }
+                .padding(.horizontal, Theme.Spacing.s9)
+                .padding(.vertical, Theme.Spacing.s3)
+                .background(Theme.dangerSoft)
+            }
+            InputBar(
+                controller: terminalController,
+                onNaturalLanguage: handleAI,
+                onShellConfirm: { cmd, assessment in
+                    pendingConfirm = PendingShellConfirm(command: cmd, assessment: assessment)
+                }
+            )
         }
         .background(Theme.bgSurface)
+        .sheet(item: $pendingConfirm) { pc in
+            RiskConfirmDialog(
+                command: pc.command,
+                level: pc.assessment.level,
+                impactScope: pc.assessment.impactScope,
+                onConfirm: {
+                    terminalController.run(pc.command)
+                    pendingConfirm = nil
+                },
+                onCancel: { pendingConfirm = nil }
+            )
+        }
+    }
+
+    private func handleAI(_ text: String) {
+        let settings = state.settings
+        let cwd = state.selectedSession()?.currentCwd ?? ""
+        lastQuery = text
+        Task {
+            aiLoading = true
+            aiError = nil
+            defer { aiLoading = false }
+            guard let apiKey = KeychainStoreResolve.resolveApiKey(ref: settings.apiKeyRef),
+                  !apiKey.isEmpty else {
+                aiError = "未配置 API key，请在设置中填写"
+                return
+            }
+            let config = AiConfig(
+                apiBaseUrl: settings.apiBaseUrl,
+                model: settings.model,
+                apiKey: apiKey,
+                promptVersion: "v1"
+            )
+            let advisor = CommandAdvisor(client: AiClient(config: config))
+            do {
+                pendingSuggestion = try await advisor.suggest(
+                    naturalLanguage: text,
+                    context: cwd,
+                    policy: settings.confirmationPolicy
+                )
+            } catch let e as AiError {
+                aiError = friendlyError(e)
+            } catch {
+                aiError = "请求失败：\(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func reassess(_ newCommand: String) {
+        guard let old = pendingSuggestion else { return }
+        let a = RiskDetector().assess(newCommand, policy: state.settings.confirmationPolicy)
+        pendingSuggestion = AiCommandSuggestion(
+            command: newCommand,
+            explanation: old.explanation,
+            riskLevel: a.level,
+            impactScope: a.impactScope,
+            requiresConfirmation: a.requiresConfirmation,
+            provider: old.provider,
+            model: old.model,
+            promptVersion: old.promptVersion
+        )
+    }
+
+    private func friendlyError(_ e: AiError) -> String {
+        switch e {
+        case .notConfigured: return "AI 未配置，请在设置中填写 API key"
+        case .unauthorized: return "API key 无效或已过期（401）"
+        case .rateLimited: return "请求过于频繁，请稍后再试（429）"
+        case .http(let code): return "服务异常（HTTP \(code)）"
+        case .transport(let msg): return "网络错误：\(msg)"
+        case .decodeFailed: return "AI 返回格式异常，请重试"
+        }
     }
 }
 
